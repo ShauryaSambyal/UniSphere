@@ -3,6 +3,7 @@ import { Send, Bot, X, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { API_BASE } from '../services/api';
 
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,8 +34,7 @@ export default function Chatbot() {
     try {
       // Create a message history excluding the initial system greeting if we prefer
       // Or just send the latest query. The backend chatController expects { message: string }.
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiBase}/api/chat`, {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage })

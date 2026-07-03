@@ -1,10 +1,23 @@
 import axios from 'axios';
 
+/**
+ * The resolved API base URL.
+ * - In production: uses VITE_API_URL env var (e.g. https://unisphere-malg.onrender.com)
+ * - In local dev: empty string, relies on Vite proxy (/api → localhost:5000)
+ *
+ * Export this for use in raw fetch() calls (e.g. streaming endpoints).
+ */
+export const API_BASE = import.meta.env.VITE_API_URL || '';
+
+/**
+ * Axios instance pre-configured with the backend base URL and JWT auth header.
+ * Use this for all standard (non-streaming) API calls.
+ */
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api', // Use proxy locally or env variable in production
+  baseURL: `${API_BASE}/api`,
 });
 
-// Request interceptor to attach JWT token to all requests
+// Attach JWT token to every request automatically
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -13,9 +26,7 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 export default api;

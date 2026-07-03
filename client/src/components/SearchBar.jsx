@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, MapPin, Building, ArrowRight, Sparkles } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -69,8 +69,7 @@ export default function SearchBar() {
       }
       setLoading(true);
       try {
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        const { data } = await axios.get(`${apiBase}/api/colleges/search?q=${encodeURIComponent(query)}&limit=8`);
+        const { data } = await api.get(`/colleges/search?q=${encodeURIComponent(query)}&limit=8`);
         setResults(data);
       } catch (err) {
         console.error('Search error', err);

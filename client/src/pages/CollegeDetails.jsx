@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import { MapPin, Trophy, DollarSign, Building2, BookOpen, Star, Activity, Coffee } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
@@ -15,8 +15,7 @@ export default function CollegeDetails() {
   useEffect(() => {
     const fetchCollege = async () => {
       try {
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        const { data } = await axios.get(`${apiBase}/api/colleges/${id}`);
+        const { data } = await api.get(`/colleges/${id}`);
         setCollege(data);
       } catch (err) {
         console.error(err);
@@ -30,8 +29,7 @@ export default function CollegeDetails() {
   const generateSummary = async () => {
     setSummaryLoading(true);
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const { data } = await axios.post(`${apiBase}/api/generate-summary/${id}`);
+      const { data } = await api.post(`/generate-summary/${id}`);
       setCollege(prev => ({ ...prev, aiSummary: data.summary }));
     } catch (err) {
       console.error(err);

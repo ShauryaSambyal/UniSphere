@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { Check, X, Search } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -15,8 +15,7 @@ export default function Compare() {
         return;
       }
       try {
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        const { data } = await axios.get(`${apiBase}/api/colleges/search?q=${encodeURIComponent(query)}&limit=5`);
+        const { data } = await api.get(`/colleges/search?q=${encodeURIComponent(query)}&limit=5`);
         setSearchResults(data);
       } catch (err) {
         console.error(err);

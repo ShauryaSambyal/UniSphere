@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, BookOpen, Trash2, Bot, User, Loader2, ArrowRight, CornerDownLeft } from 'lucide-react';
+import { API_BASE } from '../services/api';
 
 export default function Chat() {
   const [messages, setMessages] = useState(() => {
@@ -78,8 +79,7 @@ export default function Chat() {
     setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', sources: [] }]);
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/chat`, {
+      const response = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text })
