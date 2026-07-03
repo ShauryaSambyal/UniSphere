@@ -21,17 +21,46 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS
+// ────────────────────────────────────────────────────────────
+// CORS – allow the deployed Render client + localhost in dev
+// CLIENT_URL env var should be set in your Render dashboard,
+// e.g. https://unisphere-malg.onrender.com
+// ────────────────────────────────────────────────────────────
+const allowedOrigins = [
+  'http://localhost:5173',  // Vite dev server
+  'http://localhost:3000',  // alternate dev port
+  process.env.CLIENT_URL,   // deployed frontend URL from env var
+].filter(Boolean); // remove undefined/empty values
+
 app.use(cors({
-  origin: '*', // In production, refine to client URL
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: (origin, callback) => {
+    // Allow requests with no origin (Postman, server-to-server, mobile)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS policy: origin ${origin} is not allowed`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
 }));
 
 app.use(express.json());
 
 // Serve uploads static folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ────────────────────────────────────────────────────────────
+// Health-check endpoints (Render uses these to verify server)
+// ────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'UniSphere API is running 🚀' });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
 
 // Routes mount
 app.use('/api/auth', authRoutes);
@@ -55,12 +84,13 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/colleg
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
-    console.log('Successfully connected to MongoDB.');
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+    console.log('✅ Successfully connected to MongoDB.');
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`🌍 Allowed CORS origins: ${allowedOrigins.join(', ')}`);
     });
   })
   .catch(err => {
-    console.error('Database connection error:', err);
+    console.error('❌ Database connection error:', err);
     process.exit(1);
   });
