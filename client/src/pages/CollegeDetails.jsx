@@ -15,7 +15,8 @@ export default function CollegeDetails() {
   useEffect(() => {
     const fetchCollege = async () => {
       try {
-        const { data } = await axios.get(`http://localhost:5000/api/colleges/${id}`);
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const { data } = await axios.get(`${apiBase}/api/colleges/${id}`);
         setCollege(data);
       } catch (err) {
         console.error(err);
@@ -29,7 +30,8 @@ export default function CollegeDetails() {
   const generateSummary = async () => {
     setSummaryLoading(true);
     try {
-      const { data } = await axios.post(`http://localhost:5000/api/generate-summary/${id}`);
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const { data } = await axios.post(`${apiBase}/api/generate-summary/${id}`);
       setCollege(prev => ({ ...prev, aiSummary: data.summary }));
     } catch (err) {
       console.error(err);

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api', // Use proxy locally or env variable in production
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api', // Use proxy locally or env variable in production
 });
 
 // Request interceptor to attach JWT token to all requests

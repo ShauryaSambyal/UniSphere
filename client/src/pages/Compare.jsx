@@ -15,7 +15,8 @@ export default function Compare() {
         return;
       }
       try {
-        const { data } = await axios.get(`http://localhost:5000/api/colleges/search?q=${encodeURIComponent(query)}&limit=5`);
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const { data } = await axios.get(`${apiBase}/api/colleges/search?q=${encodeURIComponent(query)}&limit=5`);
         setSearchResults(data);
       } catch (err) {
         console.error(err);

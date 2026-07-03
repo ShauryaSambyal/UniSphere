@@ -78,7 +78,8 @@ export default function Chat() {
     setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', sources: [] }]);
 
     try {
-      const response = await fetch('http://localhost:5000/api/chat', {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiBase}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text })

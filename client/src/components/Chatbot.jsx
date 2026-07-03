@@ -33,7 +33,8 @@ export default function Chatbot() {
     try {
       // Create a message history excluding the initial system greeting if we prefer
       // Or just send the latest query. The backend chatController expects { message: string }.
-      const res = await fetch('http://localhost:5000/api/chat', {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiBase}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage })
