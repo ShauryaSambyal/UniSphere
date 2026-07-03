@@ -1,0 +1,40 @@
+import mongoose from 'mongoose';
+
+const reviewSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  collegeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'College',
+    required: true,
+    index: true
+  },
+  rating: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 5
+  },
+  review: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  upvotes: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// A user can review a college only once
+reviewSchema.index({ userId: 1, collegeId: 1 }, { unique: true });
+
+const Review = mongoose.model('Review', reviewSchema);
+export default Review;

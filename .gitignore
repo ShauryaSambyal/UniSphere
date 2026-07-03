@@ -1,0 +1,135 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_modules/
+
+# Environment variables & Sensitive files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+*.env
+server/.env
+client/.env
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+out/
+.next/
+.cache/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented grads
+lib-cov
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# node-gyp directory
+.node-gyp
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rts2_cache_status
+.rts2_cache_compile
+.rts2_cache_errors
+
+# REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variable files
+.env.test
+.env.spec
+
+# parcel-cache
+.parcel-cache
+
+# Next.js build files
+.next
+out
+
+# Nuxt.js build project
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public/
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless Webpack templates
+.webpack/
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# Tern project file
+.tern-project
+
+# Editor directories and files
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Uploads and temporary uploads (keep directory but ignore files)
+server/uploads/*
+!server/uploads/.gitkeep
