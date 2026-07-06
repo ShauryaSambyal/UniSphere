@@ -22,23 +22,34 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ────────────────────────────────────────────────────────────
-// CORS – allow the deployed Render client + localhost in dev
-// CLIENT_URL env var should be set in your Render dashboard,
-// e.g. https://unisphere-malg.onrender.com
+// CORS – allow localhost in dev + all URLs listed in CLIENT_URL
+//
+// CLIENT_URL can be a single URL or a comma-separated list:
+//   e.g. https://unisphere.vercel.app,https://unisphere-malg.onrender.com
+//
+// Set this in your Render dashboard under Environment Variables.
 // ────────────────────────────────────────────────────────────
 const allowedOrigins = [
   'http://localhost:5173',  // Vite dev server
   'http://localhost:3000',  // alternate dev port
-  process.env.CLIENT_URL,   // deployed frontend URL from env var
-].filter(Boolean); // remove undefined/empty values
+  // Support comma-separated list of production origins
+  ...(process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(',').map(u => u.trim()).filter(Boolean)
+    : []),
+];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (Postman, server-to-server, mobile)
+    // Allow requests with no origin (Postman, server-to-server, curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
+    // Allow any Vercel preview deployment (*.vercel.app)
+    if (/^https:\/\/[a-z0-9-]+-[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`CORS blocked: ${origin}`);
     return callback(new Error(`CORS policy: origin ${origin} is not allowed`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
