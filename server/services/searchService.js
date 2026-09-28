@@ -1,22 +1,34 @@
 import { algoliasearch } from 'algoliasearch';
-import dotenv from 'dotenv';
 import College from '../models/College.js';
-
-dotenv.config();
+import '../config/env.js';
 
 const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID || '';
-const ALGOLIA_API_KEY = process.env.ALGOLIA_API_KEY || '';
 const INDEX_NAME = process.env.ALGOLIA_INDEX_NAME || 'colleges';
 
-let client = null;
+// Algolia issues a separate key per privilege level. Indexing needs the write
+// key; queries only need the least-privileged search key. ALGOLIA_API_KEY is
+// still honoured as a single-key fallback for both.
+const ALGOLIA_WRITE_API_KEY =
+  process.env.ALGOLIA_WRITE_API_KEY || process.env.ALGOLIA_API_KEY || '';
+const ALGOLIA_SEARCH_API_KEY =
+  process.env.ALGOLIA_SEARCH_API_KEY || process.env.ALGOLIA_API_KEY || '';
 
-if (ALGOLIA_APP_ID && ALGOLIA_API_KEY) {
+function createAlgoliaClient(apiKey, label) {
+  if (!ALGOLIA_APP_ID || !apiKey) return null;
   try {
-    client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_API_KEY);
+    return algoliasearch(ALGOLIA_APP_ID, apiKey);
   } catch (error) {
-    console.error('Algolia client initialization failed:', error.message);
+    console.error(`Algolia ${label} client initialization failed:`, error.message);
+    return null;
   }
-} else {
+}
+
+// The write client can add and delete records, so it must never be exposed to
+// browser code or reused for public-facing queries.
+const writeClient = createAlgoliaClient(ALGOLIA_WRITE_API_KEY, 'write');
+const searchClient = createAlgoliaClient(ALGOLIA_SEARCH_API_KEY, 'search') || writeClient;
+
+if (!writeClient || !searchClient) {
   console.info('Algolia credentials missing in environment variables. Using MongoDB fallback search mode.');
 }
 
@@ -24,9 +36,9 @@ if (ALGOLIA_APP_ID && ALGOLIA_API_KEY) {
  * Ensures index settings are initialized in Algolia.
  */
 async function initializeSearchIndex() {
-  if (!client) return null;
+  if (!writeClient) return null;
   try {
-    await client.setSettings({
+    await writeClient.setSettings({
       indexName: INDEX_NAME,
       indexSettings: {
         searchableAttributes: ['name', 'shortName', 'location.city', 'location.state', 'courses'],
@@ -36,7 +48,7 @@ async function initializeSearchIndex() {
     console.log('Algolia index settings configured.');
     return true;
   } catch (error) {
-    console.warn('Algolia settings update failed (normal if API key is not admin or search-only):', error.message);
+    console.warn('Algolia settings update failed (the write key may lack the editSettings privilege):', error.message);
     return null;
   }
 }
@@ -45,7 +57,7 @@ async function initializeSearchIndex() {
  * Add or update college in Algolia.
  */
 export async function syncCollegeToSearch(college) {
-  if (!client) return false;
+  if (!writeClient) return false;
   try {
     const doc = {
       objectID: college._id.toString(), // Algolia requires objectID
@@ -62,7 +74,7 @@ export async function syncCollegeToSearch(college) {
       instituteType: college.instituteType,
       courses: college.courses || []
     };
-    await client.saveObjects({
+    await writeClient.saveObjects({
       indexName: INDEX_NAME,
       objects: [doc]
     });
@@ -78,7 +90,7 @@ export async function syncCollegeToSearch(college) {
  * Add or update multiple colleges in Algolia in bulk.
  */
 export async function syncAllCollegesToSearch(colleges) {
-  if (!client) return false;
+  if (!writeClient) return false;
   try {
     const docs = colleges.map(college => ({
       objectID: college._id.toString(),
@@ -95,7 +107,7 @@ export async function syncAllCollegesToSearch(colleges) {
       instituteType: college.instituteType,
       courses: college.courses || []
     }));
-    await client.saveObjects({
+    await writeClient.saveObjects({
       indexName: INDEX_NAME,
       objects: docs
     });
@@ -111,9 +123,9 @@ export async function syncAllCollegesToSearch(colleges) {
  * Delete college from Algolia.
  */
 export async function deleteCollegeFromSearch(collegeId) {
-  if (!client) return false;
+  if (!writeClient) return false;
   try {
-    await client.deleteObject({
+    await writeClient.deleteObject({
       indexName: INDEX_NAME,
       objectID: collegeId.toString()
     });
@@ -135,9 +147,9 @@ export async function searchColleges(queryText, limit = 10) {
     return College.find({}).sort({ nirfRanking: 1 }).limit(limit);
   }
 
-  if (client) {
+  if (searchClient) {
     try {
-      const searchRes = await client.search({
+      const searchRes = await searchClient.search({
         requests: [
           {
             indexName: INDEX_NAME,

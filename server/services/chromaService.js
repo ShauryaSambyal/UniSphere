@@ -1,13 +1,11 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
 import College from '../models/College.js';
-
-dotenv.config();
+import '../config/env.js';
 
 const CHROMADB_HOST = process.env.CHROMADB_HOST || 'http://localhost:8000';
 const COLLECTION_NAME = 'colleges_collection';
 
-// Dynamic import of transformers (Xenova version) to run BAAI/bge-large-en-v1.5 in-process
+// Dynamic import of Transformers.js (Hugging Face) to run BAAI/bge-large-en-v1.5 in-process
 let extractor = null;
 let extractorPromise = null;
 
@@ -17,11 +15,11 @@ async function getExtractor() {
 
   extractorPromise = (async () => {
     try {
-      console.log('Initializing @xenova/transformers pipeline for BAAI/bge-large-en-v1.5...');
-      const { pipeline } = await import('@xenova/transformers');
-      // Xenova/bge-large-en-v1.5 is the Node-compatible format of the model
+      console.log('Initializing @huggingface/transformers pipeline for BAAI/bge-large-en-v1.5...');
+      const { pipeline } = await import('@huggingface/transformers');
+      // Xenova/bge-large-en-v1.5 is the ONNX-ready port of BAAI/bge-large-en-v1.5
       extractor = await pipeline('feature-extraction', 'Xenova/bge-large-en-v1.5', {
-        quantized: true // Use quantized version to reduce size/memory usage
+        dtype: 'q8' // 8-bit quantized weights: smaller download, lower memory usage
       });
       console.log('BAAI/bge-large-en-v1.5 model loaded successfully.');
       return extractor;
@@ -47,7 +45,7 @@ export async function getEmbedding(text) {
       return Array.from(output.data);
     }
   } catch (error) {
-    console.error('Error generating embedding with @xenova/transformers:', error.message);
+    console.error('Error generating embedding with @huggingface/transformers:', error.message);
   }
 
   // Fallback: Seeded pseudo-random 1024-dimension vector for offline development

@@ -1,14 +1,12 @@
+import '../config/env.js';
 import fs from 'fs/promises';
 import path from 'path';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { importDataFile } from '../services/importService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const DATA_DIR = path.resolve(__dirname, '../data');
 

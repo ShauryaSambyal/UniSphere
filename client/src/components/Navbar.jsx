@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Sun, Moon, LogIn, LogOut, ShieldAlert, Sparkles, HelpCircle, Layers, Compass, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';

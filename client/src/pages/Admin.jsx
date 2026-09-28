@@ -170,7 +170,7 @@ export default function Admin() {
     setUiError('');
     try {
       const res = await api.post('/embeddings/generate');
-      setUiSuccess(`Vector Index completed. Synced to Chroma: ${res.data.syncedToChroma}, Meili: ${res.data.syncedToMeili}`);
+      setUiSuccess(`Vector Index completed. Synced to Chroma: ${res.data.syncedToChroma}, Search: ${res.data.syncedToSearch}`);
     } catch (err) {
       setUiError('Embedding compilation pipeline failed: ' + (err.response?.data?.message || err.message));
     } finally {

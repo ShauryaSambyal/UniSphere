@@ -1,6 +1,5 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
-dotenv.config();
+import '../config/env.js';
 
 const LLAMA_API_URL = 'https://api.llama-api.com/chat/completions';
 

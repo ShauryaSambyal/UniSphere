@@ -1,8 +1,6 @@
 import axios from 'axios';
-import dotenv from 'dotenv';
 import NearbyPlace from '../models/NearbyPlace.js';
-
-dotenv.config();
+import '../config/env.js';
 
 const MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 

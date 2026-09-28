@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Award, BookOpen, GraduationCap, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, MapPin, Award, Sparkles, GraduationCap, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
 // Framer Motion variants for cascading suggestion dropdown
@@ -55,17 +55,11 @@ export default function Hero() {
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
-  const [selectedRank, setSelectedRank] = useState('');
 
   // Options for selectors (could be fetched or hardcoded for seed data)
   const states = ['Karnataka', 'Maharashtra'];
   const cities = ['Bangalore', 'Mumbai'];
   const courses = ['Computer Science Engineering', 'Electronics & Communication Engineering', 'Bachelor of Business Administration'];
-  const ranks = [
-    { label: 'Top 10', max: 10 },
-    { label: 'Top 100', max: 100 },
-    { label: 'Top 200', max: 200 }
-  ];
 
   // Handle outside clicks to close autocomplete dropdown
   useEffect(() => {

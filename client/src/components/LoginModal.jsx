@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mail, Lock, User as UserIcon, LogIn, ArrowRight } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginModal({ isOpen, onClose }) {

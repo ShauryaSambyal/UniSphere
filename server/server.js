@@ -1,8 +1,8 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
+import './config/env.js';
 import { fileURLToPath } from 'url';
 
 // Route imports
@@ -12,8 +12,6 @@ import chatRoutes from './routes/chatRoutes.js';
 import embeddingRoutes from './routes/embeddingRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import summaryRoutes from './routes/summaryRoutes.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

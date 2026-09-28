@@ -2,7 +2,7 @@ import College from '../models/College.js';
 import Review from '../models/Review.js';
 import NearbyPlace from '../models/NearbyPlace.js';
 import { generateCollegeSummary } from '../services/geminiService.js';
-import { getNearbyPlaces } from '../services/placesService.js';
+import { getNearbyPlacesForAllTypes } from '../services/placesService.js';
 import { syncCollegeToVectorDb, deleteCollegeFromVectorDb } from '../services/chromaService.js';
 import { syncCollegeToSearch, deleteCollegeFromSearch, searchColleges } from '../services/searchService.js';
 

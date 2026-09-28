@@ -1,5 +1,5 @@
+import '../config/env.js';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,8 +9,6 @@ import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { syncCollegeToVectorDb } from '../services/chromaService.js';
 import { syncCollegeToSearch, syncAllCollegesToSearch } from '../services/searchService.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

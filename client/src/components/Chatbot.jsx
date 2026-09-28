@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { API_BASE } from '../services/api';
 
+const CONTENT_MARKER = '\n[CONTENT_START]\n';
+
 export default function Chatbot() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -31,23 +33,64 @@ export default function Chatbot() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
+    // The user bubble is appended above, so the assistant bubble lands one slot later.
+    const assistantIndex = messages.length + 1;
+    const setAssistantContent = (content) =>
+      setMessages(prev => prev.map((msg, idx) => (idx === assistantIndex ? { ...msg, content } : msg)));
+
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
     try {
-      // Create a message history excluding the initial system greeting if we prefer
-      // Or just send the latest query. The backend chatController expects { message: string }.
+      // POST /api/chat streams plain text framed as:
+      //   {"sources":[...]}\n[CONTENT_START]\n<streamed answer>
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage })
       });
 
-      if (!res.ok) throw new Error('Network response was not ok');
+      if (!res.ok || !res.body) throw new Error('Network response was not ok');
 
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response || "Sorry, I couldn't understand." }]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffered = '';
+      let content = '';
+      let contentStarted = false;
 
+      for (;;) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          buffered += decoder.decode();
+          if (!contentStarted) {
+            const markerIndex = buffered.indexOf(CONTENT_MARKER);
+            content = markerIndex === -1 ? buffered : buffered.slice(markerIndex + CONTENT_MARKER.length);
+          } else {
+            content = buffered;
+          }
+          setAssistantContent(content || "Sorry, I couldn't understand that.");
+          break;
+        }
+
+        buffered += decoder.decode(value, { stream: true });
+
+        if (!contentStarted) {
+          const markerIndex = buffered.indexOf(CONTENT_MARKER);
+          if (markerIndex === -1) continue; // metadata header not fully received yet
+          buffered = buffered.slice(markerIndex + CONTENT_MARKER.length);
+          contentStarted = true;
+        }
+
+        content = buffered;
+        setAssistantContent(content);
+      }
     } catch (error) {
       console.error('Chat error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'There was an error communicating with the AI. Please try again later.' }]);
+      setMessages(prev => prev.map((msg, idx) =>
+        idx === assistantIndex
+          ? { ...msg, content: 'There was an error communicating with the AI. Please try again later.' }
+          : msg
+      ));
     } finally {
       setIsLoading(false);
     }
@@ -93,19 +136,18 @@ export default function Chatbot() {
                       : 'bg-gray-100 dark:bg-darkbg-base/80 border border-gray-200/50 dark:border-brand-light/10 text-foreground rounded-lg ai-glow'
                   }`}>
                     {msg.role === 'assistant' || msg.role === 'system' ? (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 dark:prose-code:text-brand-light"
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
+                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 dark:prose-code:text-brand-light">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       msg.content
                     )}
                   </div>
                 </div>
               ))}
-              {isLoading && (
+              {isLoading && messages[messages.length - 1]?.content === '' && (
                 <div className="flex justify-start">
                   <div className="bg-gray-100 dark:bg-darkbg-base/80 border border-gray-200/50 dark:border-brand-light/10 p-3 rounded-lg flex gap-1 items-center typing-indicator">
                     <span></span><span></span><span></span>

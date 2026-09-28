@@ -8,7 +8,7 @@ UniSphere is a full-stack, production-ready educational guidance platform built 
 
 ```mermaid
 graph TD
-    User[Student Interface / Web UI] -->|Query Autocomplete| MS[Meilisearch]
+    User[Student Interface / Web UI] -->|Query Autocomplete| MS[Algolia]
     User -->|Compare & Recommendations| BE[Node Express API]
     User -->|Ask Assistant Chat| BE
     BE -->|Store / Fetch Metadata| DB[(MongoDB)]
@@ -18,8 +18,8 @@ graph TD
 ```
 
 ### Key Subsystems:
-1. **Semantic Autocomplete**: Synchronized indices in Meilisearch provide high-speed suggestions as students type.
-2. **Vector DB Integration (RAG)**: Ingests structured college text documents into ChromaDB. During user queries, searches vector databases utilizing `BAAI/bge-large-en-v1.5` embeddings to build accurate context for Gemini.
+1. **Semantic Autocomplete**: Synchronized indices in Algolia provide high-speed suggestions as students type (with an automatic MongoDB regex fallback).
+2. **Vector DB Integration (RAG)**: Ingests structured college text documents into ChromaDB. During user queries, it searches the vector database using `BAAI/bge-large-en-v1.5` embeddings, generated in-process by Transformers.js (`@huggingface/transformers` on the ONNX runtime) to build accurate context for Gemini.
 3. **AI Chatbot**: Pipes streaming HTTP chunked transfers to support ChatGPT-style typing effects.
 4. **Google Maps Integration**: Obtains nearby restaurants, cafes, hospitals, shopping malls, and transit hubs for any college location coordinates.
 5. **Recommendation Engine**: Scores matching colleges based on NIRF standings, package numbers, tuition constraints, and preferred cities.
@@ -29,7 +29,7 @@ graph TD
 ## Project Structure
 
 ```
-d:/AI_CHATBOT/
+UniSphere/
 ├── client/                 # React Frontend (Vite)
 │   ├── public/
 │   ├── src/
@@ -44,7 +44,7 @@ d:/AI_CHATBOT/
 │   ├── middleware/         # auth (JWT checks and Admin gates)
 │   ├── models/             # Mongoose schemas (User, College, Review)
 │   ├── routes/             # API routing
-│   ├── services/           # geminiService, chromaService, meiliService, placesService
+│   ├── services/           # geminiService, chromaService, searchService, placesService
 │   ├── scripts/            # seed.js database initialiser
 │   └── server.js           # Server startup script
 ├── .env                    # Environment credentials variables (root)
@@ -55,41 +55,62 @@ d:/AI_CHATBOT/
 
 ## Environment Configuration
 
-Create a `.env` file at the root:
+Copy the example file and fill in the values you have:
+
+```bash
+cp server/.env.example server/.env
+```
+
+The backend loads `server/.env` first and falls back to a repository-root `.env`, so either location works. Only `MONGODB_URI` and `JWT_SECRET` are strictly required — every third-party integration below degrades to a local mock/fallback while its key is empty.
 
 ```env
+# Server
+PORT=5000
+NODE_ENV=development
+CLIENT_URL=http://localhost:5173
+
 # MongoDB Connection
 MONGODB_URI=mongodb://localhost:27017/college-platform
 
 # JWT Authentication
 JWT_SECRET=super_secret_jwt_key_change_me_in_production
 
-# Google Gemini API Key
+# Google Gemini API Key (AI summaries + RAG chat)
 GEMINI_API_KEY=your-gemini-api-key-here
 
-# Google Maps Places API Key
+# Google Maps Places API Key (nearby facilities)
 GOOGLE_MAPS_API_KEY=your-google-places-key-here
 
-# Meilisearch Server Configuration
-MEILISEARCH_HOST=http://localhost:7700
-MEILISEARCH_API_KEY=your-meilisearch-key-here
+# Algolia search configuration (semantic autocomplete + index sync)
+ALGOLIA_APP_ID=your-algolia-app-id
+
+# Write key — creates/updates/deletes index records. Server-side only.
+ALGOLIA_WRITE_API_KEY=your-algolia-write-key
+
+# Search key — query-only, least privilege.
+ALGOLIA_SEARCH_API_KEY=your-algolia-search-key
+
+ALGOLIA_INDEX_NAME=colleges
 
 # Vector Database (ChromaDB) Configuration
 CHROMADB_HOST=http://localhost:8000
-CHROMADB_PORT=8000
 
-# Embeddings Model Configuration
-EMBEDDING_MODEL=BAAI/bge-large-en-v1.5
-
-# Server Port
-PORT=5000
+# Optional alternative chat provider
+LLAMA_API_KEY=your-llama-api-key
 ```
 
-*Note: Built-in automated fallbacks mock data calculations are in place if Meilisearch, ChromaDB, Gemini, or Google Places keys are not configured or offline, enabling immediate out-of-the-box local testing.*
+*Note: Built-in automated fallbacks (mock data + MongoDB search) are in place if Algolia, ChromaDB, Gemini, or Google Places keys are not configured or offline, enabling immediate out-of-the-box local testing.*
 
 ---
 
 ## Setup & Running
+
+### Prerequisites
+
+- **Node.js 20.19 or newer** (built and tested here on Node 24).
+- **MongoDB** running locally, or a MongoDB Atlas connection string in `MONGODB_URI`.
+
+No C++ toolchain or Visual Studio build tools are required: the only native dependencies (`sharp`, `onnxruntime-node`) ship prebuilt binaries for Windows, macOS, and Linux. The first embedding request downloads the quantized `Xenova/bge-large-en-v1.5` ONNX model (roughly 330 MB) into the local Transformers.js cache; later runs reuse it. Until the model is cached, `chromaService` transparently falls back to deterministic local vectors.
 
 ### 1. Install Dependencies
 
@@ -103,6 +124,11 @@ npm install
 ```bash
 cd ../client
 npm install
+```
+
+Or install all three workspaces at once from the repository root:
+```bash
+npm run install-all
 ```
 
 ### 2. Seed the Database
