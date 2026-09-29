@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MapPin, Award, IndianRupee, Briefcase, ChevronRight, Settings } from 'lucide-react';
+import { Sparkles, MapPin, Award, IndianRupee, ChevronRight, SearchX, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import Dropdown from '../components/Dropdown';
+import { EASE, fadeUp } from '../lib/motion';
 
 export default function Recommendations() {
   // Input states
@@ -10,7 +12,7 @@ export default function Recommendations() {
   const [course, setCourse] = useState('');
   const [budget, setBudget] = useState('');
   const [preferredCity, setPreferredCity] = useState('');
-  
+
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -49,156 +51,169 @@ export default function Recommendations() {
     }
   };
 
+  const selectTrigger =
+    'mt-2 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-line bg-background px-3.5 py-2.5 text-left text-sm font-normal text-foreground transition-colors duration-150 hover:border-line-strong';
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
+      className="mx-auto max-w-5xl space-y-10 px-4 py-10 sm:px-6 lg:px-8"
+    >
       {/* Header */}
-      <div className="border-b border-gray-200/50 pb-6 dark:border-white/10">
-        <h1 className="font-sans text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
-          <Sparkles size={28} className="text-brand-light dark:text-brand-light animate-pulse" />
-          <span>Match Maker Recommendations</span>
+      <motion.div {...fadeUp(0)} className="border-b border-line pb-8">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Match maker</span>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-foreground">
+          Personalized recommendations
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Discover personalized college suggestions matching your course, budget, and location preferences</p>
-      </div>
+        <p className="mt-2 max-w-lg text-sm font-normal leading-relaxed text-muted">
+          Set your course, budget and location preferences — we rank every indexed college against them.
+        </p>
+      </motion.div>
 
       {/* Input Form card */}
-      <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/10 dark:bg-darkbg-card/45 backdrop-blur-md">
+      <motion.div {...fadeUp(0.05)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
         <form onSubmit={handleMatch} className="grid gap-6 md:grid-cols-2">
           {/* State */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">State Preference</label>
-            <select
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">State preference</label>
+            <Dropdown
               value={state}
-              onChange={(e) => setState(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-white py-3 px-4 text-xs text-gray-950 outline-none focus:border-brand-light focus:ring-2 focus:ring-brand-light/20 dark:border-white/10 dark:bg-[#131313] dark:text-white transition-all duration-200"
-            >
-              <option value="">Any State</option>
-              {states.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+              onChange={setState}
+              options={states}
+              placeholder="Any state"
+              triggerClassName={selectTrigger}
+            />
           </div>
 
           {/* Preferred City */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Preferred City</label>
-            <select
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">Preferred city</label>
+            <Dropdown
               value={preferredCity}
-              onChange={(e) => setPreferredCity(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-white py-3 px-4 text-xs text-gray-950 outline-none focus:border-brand-light focus:ring-2 focus:ring-brand-light/20 dark:border-white/10 dark:bg-[#131313] dark:text-white transition-all duration-200"
-            >
-              <option value="">Any City</option>
-              {cities.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+              onChange={setPreferredCity}
+              options={cities}
+              placeholder="Any city"
+              triggerClassName={selectTrigger}
+            />
           </div>
 
           {/* Preferred Course */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Desired Stream / Course</label>
-            <select
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">Desired stream / course</label>
+            <Dropdown
               value={course}
-              onChange={(e) => setCourse(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-white py-3 px-4 text-xs text-gray-950 outline-none focus:border-brand-light focus:ring-2 focus:ring-brand-light/20 dark:border-white/10 dark:bg-[#131313] dark:text-white transition-all duration-200"
-            >
-              <option value="">Any Course</option>
-              {courses.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
+              onChange={setCourse}
+              options={courses}
+              placeholder="Any course"
+              triggerClassName={selectTrigger}
+            />
           </div>
 
           {/* Budget */}
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Tuition Budget Limit</label>
-            <select
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">Tuition budget limit</label>
+            <Dropdown
               value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-white py-3 px-4 text-xs text-gray-950 outline-none focus:border-brand-light focus:ring-2 focus:ring-brand-light/20 dark:border-white/10 dark:bg-[#131313] dark:text-white transition-all duration-200"
-            >
-              <option value="">Any Budget</option>
-              {budgets.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-            </select>
+              onChange={setBudget}
+              options={budgets}
+              placeholder="Any budget"
+              triggerClassName={selectTrigger}
+            />
           </div>
 
-          <div className="md:col-span-2 flex justify-end">
+          <div className="flex justify-end md:col-span-2">
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-light via-brand-accent to-brand-purple px-8 py-3.5 text-xs font-bold text-gray-950 shadow-lg shadow-brand-light/10 hover:brightness-110 active:scale-[0.98] transition-all duration-200 cursor-pointer"
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-foreground px-6 py-2.5 text-sm font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98] disabled:opacity-50"
             >
-              {loading ? 'Finding matches...' : 'Generate AI Matches'}
-              <Sparkles size={14} />
+              {loading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Finding matches…
+                </>
+              ) : (
+                <>
+                  Generate matches
+                  <Sparkles size={14} />
+                </>
+              )}
             </button>
           </div>
         </form>
-      </div>
+      </motion.div>
 
       {/* Results Section */}
       <div className="space-y-6">
         {loading ? (
           <div className="space-y-4">
             {[1, 2].map(n => (
-              <div key={n} className="h-40 w-full animate-pulse rounded-3xl bg-gray-200/50 dark:bg-white/5" />
+              <div key={n} className="skeleton h-36 w-full rounded-2xl" />
             ))}
           </div>
         ) : searched && results.length === 0 ? (
-          <div className="text-center py-12 border border-dashed border-gray-200 rounded-3xl dark:border-white/10">
-            <Settings className="mx-auto text-gray-400 mb-4 animate-spin" style={{ animationDuration: '6s' }} size={48} />
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">No Matching Colleges</h3>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Try widening your budget or selecting a different course option.</p>
+          <div className="rounded-2xl border border-dashed border-line-strong py-16 text-center">
+            <SearchX className="mx-auto mb-4 text-faint" size={36} />
+            <h3 className="text-lg font-medium text-foreground">No matching colleges</h3>
+            <p className="mt-1 text-sm font-normal text-muted">
+              Try widening your budget or selecting a different course option.
+            </p>
           </div>
         ) : (
           <AnimatePresence>
             {results.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-4"
-              >
-                <h3 className="font-sans text-xs font-bold text-gray-400 uppercase tracking-wider">Top matching colleges ranked for you</h3>
-                
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-faint">
+                  Top matches, ranked for you
+                </h3>
+
                 {results.map((item, idx) => (
                   <motion.div
                     key={item._id}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 rounded-3xl border border-gray-200/80 bg-white p-6 dark:border-white/10 dark:bg-darkbg-card/45 backdrop-blur-sm hover:border-brand-light/35 transition-all duration-200 shadow-sm hover:shadow-md"
+                    transition={{ delay: idx * 0.08, duration: 0.45, ease: EASE }}
+                    className="group flex flex-col items-start justify-between gap-6 rounded-2xl border border-line bg-card p-6 transition-all duration-200 hover:border-line-strong hover:shadow-[0_16px_40px_-20px_rgba(0,0,0,0.2)] sm:flex-row sm:items-center"
                   >
                     <div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-full bg-brand-light/10 border border-brand-light/20 px-3 py-0.5 text-[10px] font-bold text-brand-light">
-                          Match Score: {item.recommendationScore} pts
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-line bg-subtle px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-foreground">
+                          Match score {item.recommendationScore} pts
                         </span>
-                        <span className="inline-flex items-center gap-0.5 text-yellow-500 font-mono text-[10px] bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
-                          <Award size={10} />
-                          NIRF Rank: #{item.nirfRanking}
+                        <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted">
+                          <Award size={11} className="text-faint" />
+                          NIRF #{item.nirfRanking}
                         </span>
                       </div>
-                      <h4 className="mt-2 text-lg font-extrabold text-gray-950 dark:text-white">{item.name}</h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 flex items-center gap-1 font-medium">
-                        <MapPin size={12} className="text-brand-light" />
+                      <h4 className="mt-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">{item.name}</h4>
+                      <p className="mt-1 flex items-center gap-1 text-xs font-normal text-muted">
+                        <MapPin size={12} className="text-faint" />
                         {item.location.city}, {item.location.state}
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
-                      <div className="flex items-center gap-1.5 bg-gray-50 p-3 rounded-xl dark:bg-white/5 min-w-[120px] border border-gray-100 dark:border-white/5">
-                        <Briefcase size={16} className="text-brand-light" />
-                        <div>
-                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Average pkg</div>
-                          <div className="font-mono text-gray-950 dark:text-white text-xs font-extrabold mt-0.5">{item.placements?.averagePackage}</div>
-                        </div>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="min-w-[110px] rounded-xl border border-line bg-subtle p-3">
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-faint">Avg pkg</div>
+                        <div className="mt-0.5 font-mono text-xs font-medium text-foreground">{item.placements?.averagePackage}</div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 bg-gray-50 p-3 rounded-xl dark:bg-white/5 min-w-[120px] border border-gray-100 dark:border-white/5">
-                        <IndianRupee size={16} className="text-brand-accent" />
-                        <div>
-                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tuition Fee</div>
-                          <div className="font-mono text-gray-950 dark:text-white text-xs font-extrabold mt-0.5">{item.fees?.tuition.split('/')[0]}</div>
+                      <div className="min-w-[110px] rounded-xl border border-line bg-subtle p-3">
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-faint">Tuition</div>
+                        <div className="mt-0.5 flex items-center gap-1 font-mono text-xs font-medium text-foreground">
+                          <IndianRupee size={11} className="text-faint" />
+                          {item.fees?.tuition.split('/')[0]}
                         </div>
                       </div>
 
                       <Link
                         to={`/college/${item._id}`}
-                        className="rounded-xl bg-gray-100 p-3 text-gray-700 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10 transition-all border border-transparent dark:border-white/5 cursor-pointer"
+                        aria-label={`View ${item.name}`}
+                        className="rounded-xl border border-line p-3 text-muted transition-all duration-150 hover:border-line-strong hover:text-foreground"
                       >
-                        <ChevronRight size={18} />
+                        <ChevronRight size={16} className="transition-transform duration-200 group-hover:translate-x-0.5" />
                       </Link>
                     </div>
                   </motion.div>
@@ -208,6 +223,6 @@ export default function Recommendations() {
           </AnimatePresence>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

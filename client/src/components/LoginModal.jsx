@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import Dropdown from './Dropdown';
 
 export default function LoginModal({ isOpen, onClose }) {
   const { login, register } = useAuth();
@@ -41,136 +42,140 @@ export default function LoginModal({ isOpen, onClose }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
           />
 
           {/* Modal Card */}
           <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 15 }}
+            initial={{ scale: 0.96, opacity: 0, y: 14 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 15 }}
-            transition={{ type: 'spring', duration: 0.5 }}
-            className="relative w-full max-w-md overflow-hidden rounded-2xl border border-white/20 bg-white/80 p-8 shadow-2xl backdrop-blur-lg dark:border-white/5 dark:bg-darkbg-card/90"
+            exit={{ scale: 0.96, opacity: 0, y: 14 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="relative w-full max-w-md rounded-2xl border border-line bg-card-elevated p-8 shadow-[0_32px_80px_-24px_rgba(26,26,26,0.28)]"
           >
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+              aria-label="Close"
+              className="absolute right-4 top-4 cursor-pointer text-faint transition-colors duration-150 hover:text-foreground"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
 
             {/* Header */}
-            <div className="mb-6 text-center">
-              <h2 className="font-sans text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                {isRegister ? 'Create Account' : 'Welcome Back'}
+            <div className="mb-7">
+              <h2 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">
+                {isRegister ? 'Create your account' : 'Welcome back'}
               </h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-1.5 text-sm font-normal text-muted">
                 {isRegister
-                  ? 'Join UniSphere to compare colleges and review them'
-                  : 'Sign in to access AI recommendations and chat details'}
+                  ? 'Join UniSphere to compare colleges and review them.'
+                  : 'Sign in to access AI recommendations and saved chats.'}
               </p>
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-500 border border-red-500/20">
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm font-normal text-red-600">
                   {error}
                 </div>
               )}
 
               {isRegister && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
-                    Full Name
+                  <label className="block pb-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
+                    Full name
                   </label>
-                  <div className="relative mt-1">
-                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={15} />
                     <input
                       type="text"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Jane Doe"
-                      className="w-full rounded-xl border border-gray-200 bg-white/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:border-brand-accent transition-all duration-200"
+                      className="w-full rounded-lg border border-line bg-background py-2.5 pl-9 pr-3 text-sm font-normal text-foreground outline-none transition-colors duration-150 placeholder:text-faint focus:border-line-strong"
                     />
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
-                  Email Address
+                <label className="block pb-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
+                  Email address
                 </label>
-                <div className="relative mt-1">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={15} />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full rounded-xl border border-gray-200 bg-white/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:border-brand-accent transition-all duration-200"
+                    className="w-full rounded-lg border border-line bg-background py-2.5 pl-9 pr-3 text-sm font-normal text-foreground outline-none transition-colors duration-150 placeholder:text-faint focus:border-line-strong"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
+                <label className="block pb-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
                   Password
                 </label>
-                <div className="relative mt-1">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={15} />
                   <input
                     type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full rounded-xl border border-gray-200 bg-white/50 py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:border-brand-accent transition-all duration-200"
+                    className="w-full rounded-lg border border-line bg-background py-2.5 pl-9 pr-3 text-sm font-normal text-foreground outline-none transition-colors duration-150 placeholder:text-faint focus:border-line-strong"
                   />
                 </div>
               </div>
 
               {isRegister && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
+                  <label className="block pb-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
                     I am a
                   </label>
-                  <select
+                  <Dropdown
                     value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-darkbg-base dark:text-white dark:focus:border-brand-accent transition-all duration-200"
-                  >
-                    <option value="student">Student</option>
-                    <option value="admin">Administrator</option>
-                  </select>
+                    onChange={setRole}
+                    options={[
+                      { value: 'student', label: 'Student' },
+                      { value: 'admin', label: 'Administrator' },
+                    ]}
+                    placeholder="Select a role"
+                    triggerClassName="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-line bg-background px-3 py-2.5 text-left text-sm font-normal text-foreground transition-colors duration-150 hover:border-line-strong"
+                  />
                 </div>
               )}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-light to-brand-accent py-3 text-sm font-semibold text-white shadow-lg shadow-brand-light/25 hover:brightness-110 active:scale-[0.98] transition-all duration-200"
+                className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-foreground py-2.5 text-sm font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98] disabled:opacity-50"
               >
-                {loading ? 'Processing...' : isRegister ? 'Sign Up' : 'Sign In'}
-                <ArrowRight size={16} />
+                {loading ? 'Processing…' : isRegister ? 'Create account' : 'Sign in'}
+                {!loading && <ArrowRight size={14} />}
               </button>
             </form>
 
             {/* Toggle Action */}
-            <div className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-6 border-t border-line pt-5 text-center text-xs font-normal text-muted">
               {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
               <button
                 onClick={() => {
                   setError('');
                   setIsRegister(!isRegister);
                 }}
-                className="font-semibold text-brand-light hover:underline dark:text-brand-accent"
+                className="cursor-pointer font-medium text-foreground underline decoration-line-strong underline-offset-4 transition-colors hover:decoration-foreground"
               >
-                {isRegister ? 'Sign In' : 'Sign Up now'}
+                {isRegister ? 'Sign in' : 'Sign up'}
               </button>
             </div>
           </motion.div>

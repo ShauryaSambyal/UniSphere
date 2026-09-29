@@ -1,6 +1,6 @@
 # UniSphere | AI-powered College Comparison & Recommendation Platform
 
-UniSphere is a full-stack, production-ready educational guidance platform built with the MERN stack (MongoDB, Express, React, Node.js) in pure JavaScript. It features a premium, light/dark mode glassmorphic UI, semantic autocomplete search, side-by-side matrices, places detection, RAG-powered chatbot queries, and matching recommendations.
+UniSphere is a full-stack, production-ready educational guidance platform built with the MERN stack (MongoDB, Express, React, Node.js) in pure JavaScript. It features a warm, light-only editorial UI, semantic autocomplete search, side-by-side matrices, places detection, RAG-powered chatbot queries, and matching recommendations.
 
 ---
 
@@ -31,23 +31,26 @@ graph TD
 ```
 UniSphere/
 ├── client/                 # React Frontend (Vite)
+│   ├── .env                # Vite env — VITE_* only (git-ignored)
 │   ├── public/
 │   ├── src/
-│   │   ├── components/     # Navbar, Footer, LoginModal, Hero banner
-│   │   ├── context/        # AuthContext, ThemeContext
+│   │   ├── components/     # Navbar, Footer, LoginModal, Hero, Dropdown
+│   │   ├── context/        # AuthContext
+│   │   ├── lib/            # motion.jsx — shared animation variants
 │   │   ├── pages/          # Home, CollegeDetails, Compare, Chat, Admin, Recommendations
 │   │   ├── services/       # api.js axios client
 │   │   ├── App.jsx         # Routes mounting
-│   │   └── index.css       # Tailwind base, dark mode config, glassmorphism CSS
+│   │   └── index.css       # Design tokens, Tailwind base, scrollbar + marquee
 ├── server/                 # Express Backend
 │   ├── controllers/        # authController, collegeController, chatController, reviewController, embeddingController
 │   ├── middleware/         # auth (JWT checks and Admin gates)
 │   ├── models/             # Mongoose schemas (User, College, Review)
 │   ├── routes/             # API routing
 │   ├── services/           # geminiService, chromaService, searchService, placesService
-│   ├── scripts/            # seed.js database initialiser
+│   ├── config/             # env.js — the single dotenv loader
+│   ├── scripts/            # seed.js database initialiser, checkDb.js
+│   ├── .env                # Backend credentials (git-ignored)
 │   └── server.js           # Server startup script
-├── .env                    # Environment credentials variables (root)
 └── README.md
 ```
 
@@ -55,11 +58,7 @@ UniSphere/
 
 ## Environment Configuration
 
-Copy the example file and fill in the values you have:
-
-```bash
-cp server/.env.example server/.env
-```
+Create `server/.env` and fill in the values you have. The `.env` files are the only environment files in this repository, and they are git-ignored so they never reach a commit.
 
 The backend loads `server/.env` first and falls back to a repository-root `.env`, so either location works. Only `MONGODB_URI` and `JWT_SECRET` are strictly required — every third-party integration below degrades to a local mock/fallback while its key is empty.
 

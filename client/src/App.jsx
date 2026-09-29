@@ -12,9 +12,9 @@ import Chat from './pages/Chat';
 function App() {
   return (
     <Router>
-      <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors duration-300">
+      <div className="min-h-screen flex flex-col bg-background text-foreground">
         <Navbar />
-        <main className="flex-grow pt-16">
+        <main className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/colleges/:id" element={<CollegeDetails />} />

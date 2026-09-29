@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Plus, Edit, Trash2, Sparkles, Database, Users, BookOpen, Layers, Check } from 'lucide-react';
+import { ShieldAlert, Plus, Edit, Trash2, Sparkles, Database, Layers, BookOpen, Users, Check, X } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
+const inputClass =
+  'mt-1.5 w-full rounded-lg border border-line bg-background px-3 py-2 text-xs font-normal text-foreground outline-none transition-colors duration-150 placeholder:text-faint focus:border-line-strong';
+const labelClass = 'block text-[11px] font-medium uppercase tracking-wider text-faint';
+
 export default function Admin() {
   const { isAdmin } = useAuth();
-  
+
   // Dashboard stats
   const [stats, setStats] = useState({ totalColleges: 0, totalReviews: 0, totalQueries: 0, topColleges: [] });
   const [colleges, setColleges] = useState([]);
@@ -60,11 +64,11 @@ export default function Admin() {
   if (!isAdmin) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <div className="rounded-3xl border border-red-500/20 bg-red-500/5 p-8 backdrop-blur-md">
-          <ShieldAlert className="mx-auto text-red-500 mb-4" size={48} />
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">Admin Privileges Required</h3>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            This workspace contains administration filters. Please sign in with an administrator account (e.g. email: <code className="text-brand-light">admin@college.com</code>) to continue.
+        <div className="rounded-2xl border border-line bg-card p-8">
+          <ShieldAlert className="mx-auto mb-4 text-faint" size={36} />
+          <h3 className="text-lg font-semibold text-foreground">Admin privileges required</h3>
+          <p className="mt-2 text-sm font-normal leading-relaxed text-muted">
+            Please sign in with an administrator account to manage the college database.
           </p>
         </div>
       </div>
@@ -125,10 +129,10 @@ export default function Admin() {
     try {
       if (editingCollege) {
         await api.put(`/colleges/${editingCollege._id}`, formattedData);
-        setUiSuccess('College updated successfully. Search index is syncing...');
+        setUiSuccess('College updated successfully. Search index is syncing…');
       } else {
         await api.post('/colleges', formattedData);
-        setUiSuccess('College created successfully. Search index is syncing...');
+        setUiSuccess('College created successfully. Search index is syncing…');
       }
       setIsModalOpen(false);
       loadDashboardData();
@@ -139,7 +143,7 @@ export default function Admin() {
 
   // Delete college handler
   const handleDelete = async (id, name) => {
-    if (window.confirm(`Are you sure you want to delete ${name}? This will remove it from MongoDB, Meilisearch, and ChromaDB.`)) {
+    if (window.confirm(`Are you sure you want to delete ${name}? This will remove it from MongoDB, Algolia, and ChromaDB.`)) {
       try {
         await api.delete(`/colleges/${id}`);
         setUiSuccess('College deleted successfully.');
@@ -156,7 +160,7 @@ export default function Admin() {
     setUiError('');
     try {
       const res = await api.post(`/colleges/${id}/summary`);
-      setUiSuccess(`AI summary generated: "${res.data.summary.substring(0, 50)}..."`);
+      setUiSuccess(`AI summary generated: "${res.data.summary.substring(0, 50)}…"`);
       loadDashboardData();
     } catch (err) {
       setUiError('Summary generation failed: ' + (err.response?.data?.message || err.message));
@@ -170,7 +174,7 @@ export default function Admin() {
     setUiError('');
     try {
       const res = await api.post('/embeddings/generate');
-      setUiSuccess(`Vector Index completed. Synced to Chroma: ${res.data.syncedToChroma}, Search: ${res.data.syncedToSearch}`);
+      setUiSuccess(`Vector index completed. Synced to Chroma: ${res.data.syncedToChroma}, Search: ${res.data.syncedToSearch}`);
     } catch (err) {
       setUiError('Embedding compilation pipeline failed: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -179,128 +183,117 @@ export default function Admin() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 space-y-10">
+    <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
       {/* Page Title & actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-gray-200/50 pb-6 dark:border-white/5">
+      <div className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-sans text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
-            <span>Admin Dashboard</span>
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage database entries, trigger summaries, and synchronize vector embedding stores.</p>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Control panel</span>
+          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-foreground">Admin dashboard</h1>
+          <p className="mt-1 text-sm font-normal text-muted">
+            Manage database entries, trigger summaries, and synchronize vector embedding stores.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={handleRebuildEmbeddings}
             disabled={syncingVectors}
-            className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5 disabled:opacity-50 transition-all"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-xs font-medium text-muted transition-colors duration-150 hover:border-line-strong hover:text-foreground disabled:opacity-50"
           >
-            <Database size={14} className={syncingVectors ? 'animate-spin' : ''} />
-            {syncingVectors ? 'Syncing...' : 'Sync Search & Vectors'}
+            <Database size={13} className={syncingVectors ? 'animate-spin' : ''} />
+            {syncingVectors ? 'Syncing…' : 'Sync search & vectors'}
           </button>
           <button
             onClick={handleStartCreate}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-light to-brand-accent px-4 py-2.5 text-xs font-semibold text-white shadow hover:brightness-110 active:scale-[0.98] transition-all"
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-foreground px-4 py-2.5 text-xs font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98]"
           >
-            <Plus size={14} />
-            Add College
+            <Plus size={13} />
+            Add college
           </button>
         </div>
       </div>
 
       {/* Toast logs */}
-      {uiError && <div className="rounded-xl bg-red-500/10 p-4 text-sm text-red-500 border border-red-500/20">{uiError}</div>}
-      {uiSuccess && <div className="rounded-xl bg-green-500/10 p-4 text-sm text-green-500 border border-green-500/20">{uiSuccess}</div>}
+      {uiError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-normal text-red-600">{uiError}</div>}
+      {uiSuccess && <div className="rounded-xl border border-line bg-subtle p-4 text-sm font-normal text-foreground">{uiSuccess}</div>}
 
       {/* Stats Grid */}
-      <div className="grid gap-6 sm:grid-cols-3">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/5 dark:bg-darkbg-card">
-          <div className="flex items-center gap-4">
-            <div className="rounded-xl bg-brand-light/10 p-3 text-brand-light"><Layers size={22} /></div>
-            <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Total Colleges</h3>
-              <p className="text-3xl font-black text-gray-900 dark:text-white mt-1">{stats.totalColleges}</p>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[
+          { icon: Layers, label: 'Total colleges', value: stats.totalColleges },
+          { icon: BookOpen, label: 'Verified reviews', value: stats.totalReviews },
+          { icon: Users, label: 'Platform interactions', value: stats.totalQueries },
+        ].map(({ icon: Icon, label, value }) => (
+          <div key={label} className="rounded-2xl border border-line bg-card p-6">
+            <div className="flex items-center gap-4">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-subtle text-foreground">
+                <Icon size={17} />
+              </span>
+              <div>
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-faint">{label}</h3>
+                <p className="mt-0.5 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/5 dark:bg-darkbg-card">
-          <div className="flex items-center gap-4">
-            <div className="rounded-xl bg-brand-accent/10 p-3 text-brand-accent"><BookOpen size={22} /></div>
-            <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Verified Reviews</h3>
-              <p className="text-3xl font-black text-gray-900 dark:text-white mt-1">{stats.totalReviews}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/5 dark:bg-darkbg-card">
-          <div className="flex items-center gap-4">
-            <div className="rounded-xl bg-green-500/10 p-3 text-green-500"><Users size={22} /></div>
-            <div>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-gray-400">Platform Interactions</h3>
-              <p className="text-3xl font-black text-gray-900 dark:text-white mt-1">{stats.totalQueries}</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Colleges Management List */}
-      <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm dark:border-white/5 dark:bg-darkbg-card">
-        <div className="bg-gray-50 border-b border-gray-100 p-4 dark:bg-white/5 dark:border-white/5">
-          <h3 className="font-sans text-sm font-extrabold text-gray-900 dark:text-white uppercase tracking-wider">Indexed Colleges</h3>
+      <div className="overflow-hidden rounded-2xl border border-line bg-card">
+        <div className="border-b border-line p-4">
+          <h3 className="text-[11px] font-medium uppercase tracking-wider text-faint">Indexed colleges</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500">
-                <th className="p-4 font-bold uppercase tracking-wider">Name</th>
-                <th className="p-4 font-bold uppercase tracking-wider">NIRF Rank</th>
-                <th className="p-4 font-bold uppercase tracking-wider">Average Package</th>
-                <th className="p-4 font-bold uppercase tracking-wider">AI Summary</th>
-                <th className="p-4 font-bold uppercase tracking-wider text-right">Actions</th>
+              <tr className="border-b border-line text-faint">
+                <th className="p-4 font-medium uppercase tracking-wider">Name</th>
+                <th className="p-4 font-medium uppercase tracking-wider">NIRF</th>
+                <th className="p-4 font-medium uppercase tracking-wider">Avg package</th>
+                <th className="p-4 font-medium uppercase tracking-wider">AI summary</th>
+                <th className="p-4 text-right font-medium uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700 dark:divide-white/5 dark:text-gray-300">
+            <tbody className="divide-y divide-line">
               {colleges.map((college) => (
-                <tr key={college._id} className="hover:bg-gray-50/50 dark:hover:bg-white/5">
+                <tr key={college._id} className="transition-colors duration-150 hover:bg-subtle">
                   <td className="p-4">
-                    <div className="font-bold text-gray-950 dark:text-white">{college.name}</div>
-                    <div className="text-gray-400 mt-0.5">{college.location.city}, {college.location.state}</div>
+                    <div className="font-medium text-foreground">{college.name}</div>
+                    <div className="mt-0.5 font-normal text-faint">{college.location.city}, {college.location.state}</div>
                   </td>
-                  <td className="p-4 font-semibold text-yellow-500">#{college.nirfRanking}</td>
-                  <td className="p-4 font-semibold">{college.placements?.averagePackage}</td>
+                  <td className="p-4 font-mono text-foreground">#{college.nirfRanking}</td>
+                  <td className="p-4 font-mono text-muted">{college.placements?.averagePackage}</td>
                   <td className="p-4">
                     {college.aiSummary ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-500">
-                        <Check size={10} /> Active
+                      <span className="inline-flex items-center gap-1 rounded-md border border-line bg-subtle px-2 py-0.5 text-[10px] font-medium text-foreground">
+                        <Check size={10} /> Ready
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] font-semibold text-yellow-600">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-dashed border-line px-2 py-0.5 text-[10px] font-medium text-faint">
                         Missing
                       </span>
                     )}
                   </td>
-                  <td className="p-4 text-right space-x-2">
+                  <td className="space-x-1 p-4 text-right">
                     <button
                       onClick={() => handleGenerateSummary(college._id)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:text-brand-light dark:border-white/10 dark:text-gray-400"
-                      title="Trigger AI Summary Generation"
+                      className="cursor-pointer rounded-lg border border-line p-1.5 text-muted transition-colors duration-150 hover:border-line-strong hover:text-foreground"
+                      title="Trigger AI summary generation"
                     >
-                      <Sparkles size={14} />
+                      <Sparkles size={13} />
                     </button>
                     <button
                       onClick={() => handleStartEdit(college)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-500 hover:text-green-500 dark:border-white/10 dark:text-gray-400"
-                      title="Edit College"
+                      className="cursor-pointer rounded-lg border border-line p-1.5 text-muted transition-colors duration-150 hover:border-line-strong hover:text-foreground"
+                      title="Edit college"
                     >
-                      <Edit size={14} />
+                      <Edit size={13} />
                     </button>
                     <button
                       onClick={() => handleDelete(college._id, college.name)}
-                      className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:text-red-500 dark:border-white/10"
-                      title="Delete College"
+                      className="cursor-pointer rounded-lg border border-line p-1.5 text-faint transition-colors duration-150 hover:border-red-300 hover:text-red-500"
+                      title="Delete college"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
                   </td>
                 </tr>
@@ -312,37 +305,46 @@ export default function Admin() {
 
       {/* Dynamic Form Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
           {/* Backdrop */}
-          <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+          <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-foreground/40 backdrop-blur-sm" />
 
           {/* Form Card */}
-          <div className="relative w-full max-w-2xl overflow-y-auto max-h-[85vh] rounded-2xl border border-white/20 bg-white p-8 shadow-2xl dark:border-white/5 dark:bg-darkbg-card">
-            <h3 className="font-sans text-xl font-bold text-gray-900 dark:text-white mb-6">
-              {editingCollege ? 'Edit College Details' : 'Add New College'}
-            </h3>
+          <div className="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-line bg-card-elevated p-8 shadow-[0_32px_80px_-24px_rgba(26,26,26,0.24)]">
+            <div className="mb-6 flex items-center justify-between">
+              <h3 className="text-lg font-semibold tracking-[-0.01em] text-foreground">
+                {editingCollege ? 'Edit college details' : 'Add new college'}
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                aria-label="Close"
+                className="cursor-pointer text-faint transition-colors hover:text-foreground"
+              >
+                <X size={16} />
+              </button>
+            </div>
 
-            <form onSubmit={handleSubmitForm} className="space-y-4 text-xs">
+            <form onSubmit={handleSubmitForm} className="space-y-5 text-xs">
               {/* Row 1: Name & Short Name */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">College Name</label>
+                  <label className={labelClass}>College name</label>
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Abbreviation (e.g. RVCE)</label>
+                  <label className={labelClass}>Abbreviation (e.g. RVCE)</label>
                   <input
                     type="text"
                     required
                     value={formData.shortName}
                     onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
               </div>
@@ -350,34 +352,34 @@ export default function Admin() {
               {/* Row 2: Type, Ranking, Campus size */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">NIRF Ranking</label>
+                  <label className={labelClass}>NIRF ranking</label>
                   <input
                     type="number"
                     required
                     value={formData.nirfRanking}
                     onChange={(e) => setFormData({ ...formData, nirfRanking: parseInt(e.target.value, 10) })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Institute Type</label>
+                  <label className={labelClass}>Institute type</label>
                   <input
                     type="text"
                     required
                     value={formData.instituteType}
                     onChange={(e) => setFormData({ ...formData, instituteType: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Campus Area</label>
+                  <label className={labelClass}>Campus area</label>
                   <input
                     type="text"
                     required
                     value={formData.campusArea}
                     onChange={(e) => setFormData({ ...formData, campusArea: e.target.value })}
                     placeholder="e.g. 52 Acres"
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
               </div>
@@ -385,7 +387,7 @@ export default function Admin() {
               {/* Row 3: Location */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-3">
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Address</label>
+                  <label className={labelClass}>Address</label>
                   <input
                     type="text"
                     required
@@ -394,11 +396,11 @@ export default function Admin() {
                       ...formData,
                       location: { ...formData.location, address: e.target.value }
                     })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">City</label>
+                  <label className={labelClass}>City</label>
                   <input
                     type="text"
                     required
@@ -407,11 +409,11 @@ export default function Admin() {
                       ...formData,
                       location: { ...formData.location, city: e.target.value }
                     })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">State</label>
+                  <label className={labelClass}>State</label>
                   <input
                     type="text"
                     required
@@ -420,11 +422,11 @@ export default function Admin() {
                       ...formData,
                       location: { ...formData.location, state: e.target.value }
                     })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Pincode</label>
+                  <label className={labelClass}>Pincode</label>
                   <input
                     type="text"
                     required
@@ -433,11 +435,11 @@ export default function Admin() {
                       ...formData,
                       location: { ...formData.location, pincode: e.target.value }
                     })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Latitude</label>
+                  <label className={labelClass}>Latitude</label>
                   <input
                     type="number"
                     step="0.0001"
@@ -447,11 +449,11 @@ export default function Admin() {
                       ...formData,
                       location: { ...formData.location, latitude: parseFloat(e.target.value) }
                     })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Longitude</label>
+                  <label className={labelClass}>Longitude</label>
                   <input
                     type="number"
                     step="0.0001"
@@ -461,28 +463,28 @@ export default function Admin() {
                       ...formData,
                       location: { ...formData.location, longitude: parseFloat(e.target.value) }
                     })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Gender Ratio</label>
+                  <label className={labelClass}>Gender ratio</label>
                   <input
                     type="text"
                     required
                     value={formData.genderRatio}
                     onChange={(e) => setFormData({ ...formData, genderRatio: e.target.value })}
                     placeholder="e.g. 60:40"
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2.5 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
               {/* Row 4: Fees & Placements */}
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="border border-gray-200/50 p-3 rounded-xl dark:border-white/5 space-y-2">
-                  <h4 className="font-bold text-gray-400 uppercase tracking-wider">Fees Schedule</h4>
+                <div className="space-y-3 rounded-xl border border-line p-4">
+                  <h4 className="text-[11px] font-medium uppercase tracking-wider text-faint">Fees schedule</h4>
                   <div>
-                    <label className="block">Tuition Fee</label>
+                    <label className={labelClass}>Tuition fee</label>
                     <input
                       type="text"
                       required
@@ -491,11 +493,11 @@ export default function Admin() {
                         ...formData,
                         fees: { ...formData.fees, tuition: e.target.value }
                       })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 py-1.5 px-3.5 dark:border-white/10 dark:bg-darkbg-base"
+                      className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className="block">Hostel Fee</label>
+                    <label className={labelClass}>Hostel fee</label>
                     <input
                       type="text"
                       required
@@ -504,15 +506,15 @@ export default function Admin() {
                         ...formData,
                         fees: { ...formData.fees, hostel: e.target.value }
                       })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 py-1.5 px-3.5 dark:border-white/10 dark:bg-darkbg-base"
+                      className={inputClass}
                     />
                   </div>
                 </div>
 
-                <div className="border border-gray-200/50 p-3 rounded-xl dark:border-white/5 space-y-2">
-                  <h4 className="font-bold text-gray-400 uppercase tracking-wider">Placements Summary</h4>
+                <div className="space-y-3 rounded-xl border border-line p-4">
+                  <h4 className="text-[11px] font-medium uppercase tracking-wider text-faint">Placements summary</h4>
                   <div>
-                    <label className="block">Average Package</label>
+                    <label className={labelClass}>Average package</label>
                     <input
                       type="text"
                       required
@@ -521,11 +523,11 @@ export default function Admin() {
                         ...formData,
                         placements: { ...formData.placements, averagePackage: e.target.value }
                       })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 py-1.5 px-3.5 dark:border-white/10 dark:bg-darkbg-base"
+                      className={inputClass}
                     />
                   </div>
                   <div>
-                    <label className="block">Highest Package</label>
+                    <label className={labelClass}>Highest package</label>
                     <input
                       type="text"
                       required
@@ -534,7 +536,7 @@ export default function Admin() {
                         ...formData,
                         placements: { ...formData.placements, highestPackage: e.target.value }
                       })}
-                      className="mt-1 w-full rounded-lg border border-gray-200 py-1.5 px-3.5 dark:border-white/10 dark:bg-darkbg-base"
+                      className={inputClass}
                     />
                   </div>
                 </div>
@@ -543,38 +545,38 @@ export default function Admin() {
               {/* Row 5: Lists (Courses, Facilities) */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Courses offered (comma separated)</label>
+                  <label className={labelClass}>Courses offered (comma separated)</label>
                   <textarea
                     rows={2}
                     value={formData.coursesStr}
                     onChange={(e) => setFormData({ ...formData, coursesStr: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-500 dark:text-gray-400">Campus Facilities (comma separated)</label>
+                  <label className={labelClass}>Campus facilities (comma separated)</label>
                   <textarea
                     rows={2}
                     value={formData.facilitiesStr}
                     onChange={(e) => setFormData({ ...formData, facilitiesStr: e.target.value })}
-                    className="mt-1 w-full rounded-xl border border-gray-200 py-2 px-3 dark:border-white/10 dark:bg-darkbg-base dark:text-white"
+                    className={inputClass}
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-gray-100 dark:border-white/5">
+              <div className="flex justify-end gap-2 border-t border-line pt-5">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="rounded-xl border border-gray-200 px-5 py-2.5 font-semibold text-gray-500 hover:bg-gray-50 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5"
+                  className="cursor-pointer rounded-lg border border-line px-5 py-2.5 font-medium text-muted transition-colors duration-150 hover:text-foreground"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-gradient-to-r from-brand-light to-brand-accent px-5 py-2.5 font-semibold text-white shadow hover:brightness-110 active:scale-[0.98] transition-all"
+                  className="cursor-pointer rounded-lg bg-foreground px-5 py-2.5 font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98]"
                 >
-                  {editingCollege ? 'Save Changes' : 'Create College'}
+                  {editingCollege ? 'Save changes' : 'Create college'}
                 </button>
               </div>
             </form>

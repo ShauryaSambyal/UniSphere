@@ -101,42 +101,50 @@ export default function Chatbot() {
       {/* Floating Action Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 p-4 rounded-full bg-primary text-gray-950 shadow-xl shadow-brand-light/20 hover:scale-105 transition-transform z-40 cursor-pointer ${isOpen ? 'hidden' : ''}`}
+        aria-label="Open AI counselor"
+        className={`fixed bottom-6 right-6 z-40 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-foreground text-background shadow-[0_12px_32px_-8px_rgba(0,0,0,0.4)] transition-all duration-200 hover:scale-105 active:scale-95 ${isOpen ? 'hidden' : ''}`}
       >
-        <MessageSquare className="h-6 w-6" />
+        <MessageSquare className="h-5 w-5" />
       </button>
 
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            initial={{ opacity: 0, y: 32, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-6 right-6 w-96 h-[600px] max-h-[80vh] rounded-2xl overflow-hidden shadow-2xl bg-white/95 dark:bg-darkbg-card/90 backdrop-blur-[20px] border border-gray-200/80 dark:border-white/10 dark:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(0,245,255,0.08)] flex flex-col z-50"
+            exit={{ opacity: 0, y: 32, scale: 0.96 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed bottom-6 right-6 z-50 flex h-[600px] max-h-[80vh] w-96 flex-col overflow-hidden rounded-2xl border border-line bg-card-elevated shadow-[0_32px_80px_-24px_rgba(26,26,26,0.24)]"
           >
             {/* Header */}
-            <div className="p-4 border-b border-gray-200/80 dark:border-white/10 bg-gray-50/50 dark:bg-black/20 flex justify-between items-center">
-              <div className="flex items-center gap-2 text-foreground font-semibold font-sans text-sm">
-                <Bot className="text-primary h-5 w-5 animate-pulse" />
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground">
+                  <Bot size={14} className="text-background" />
+                </span>
                 AI Counselor
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-gray-500 hover:text-foreground cursor-pointer">
-                <X className="h-5 w-5" />
+              <button
+                onClick={() => setIsOpen(false)}
+                aria-label="Close chat"
+                className="cursor-pointer text-faint transition-colors duration-150 hover:text-foreground"
+              >
+                <X size={16} />
               </button>
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+            <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-4">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] p-3 text-sm transition-all duration-200 ${
-                    msg.role === 'user' 
-                      ? 'bg-primary text-gray-950 rounded-2xl rounded-tr-sm font-semibold shadow-sm shadow-brand-light/5' 
-                      : 'bg-gray-100 dark:bg-darkbg-base/80 border border-gray-200/50 dark:border-brand-light/10 text-foreground rounded-lg ai-glow'
+                  <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${
+                    msg.role === 'user'
+                      ? 'rounded-br-sm bg-foreground font-normal text-background'
+                      : 'rounded-bl-sm border border-line bg-card text-foreground'
                   }`}>
                     {msg.role === 'assistant' || msg.role === 'system' ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:bg-black/30 dark:prose-code:text-brand-light">
+                      <div className="chat-markdown max-w-none text-[13px] leading-relaxed">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {msg.content}
                         </ReactMarkdown>
@@ -149,8 +157,10 @@ export default function Chatbot() {
               ))}
               {isLoading && messages[messages.length - 1]?.content === '' && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 dark:bg-darkbg-base/80 border border-gray-200/50 dark:border-brand-light/10 p-3 rounded-lg flex gap-1 items-center typing-indicator">
-                    <span></span><span></span><span></span>
+                  <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm border border-line bg-card p-3">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
                   </div>
                 </div>
               )}
@@ -158,21 +168,22 @@ export default function Chatbot() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t border-gray-200/80 dark:border-white/10 bg-gray-50/50 dark:bg-black/20">
+            <div className="border-t border-line p-3">
               <form onSubmit={handleSubmit} className="flex gap-2">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask anything..."
-                  className="flex-1 px-4 py-2.5 bg-white dark:bg-[#131313] border border-gray-200 dark:border-white/10 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-light/50 focus:border-transparent text-foreground placeholder-gray-400 text-xs"
+                  placeholder="Ask anything…"
+                  className="flex-1 rounded-full border border-line bg-background px-4 py-2.5 text-xs font-normal text-foreground outline-none transition-colors duration-150 placeholder:text-faint focus:border-line-strong"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="p-2.5 rounded-full bg-primary text-gray-950 hover:bg-primary/95 disabled:opacity-50 transition-colors shadow shadow-brand-light/10 cursor-pointer flex items-center justify-center"
+                  aria-label="Send message"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-foreground text-background transition-all duration-200 hover:opacity-85 active:scale-95 disabled:opacity-40"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5" />
                 </button>
               </form>
             </div>

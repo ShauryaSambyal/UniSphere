@@ -1,80 +1,95 @@
 @import "tailwindcss";
 
-@theme {
-  --color-brand-light: #00f5ff; /* Academic Nexus Cyan */
-  --color-brand-dark: #00b8c0;  /* Academic Nexus Dark Cyan */
-  --color-brand-accent: #ff4d4d; /* Academic Nexus Secondary Accent */
-  --color-brand-purple: #8a2be2; /* Academic Nexus Electric Purple */
-  --color-darkbg-base: #131313; /* Level 0 Background */
-  --color-darkbg-card: #0a0c10; /* Level 1 Surface */
-  --color-darkbg-border: rgba(255, 255, 255, 0.1);
+/* ---------------------------------------------------------------------------
+   UniSphere design system — light only.
 
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-border: var(--border);
+   The palette is measured from kira-learning.com:
+     page  #FFFDF0  warm ivory (not grey-white)
+     ink   #1A1A1A
+     body  #6B6761  warm grey
+   Cards and data panels stay pure white so dense tables stay crisp against the
+   ivory page.
+
+   There is deliberately no dark theme: the variables below are the only
+   palette, so nothing can render in a colour that fights the design.
+--------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --background: #fffdf0;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-elevated: #ffffff;
+  --muted: #6b6761;
+  --faint: #9a958b;
+  --line: #e9e4d5;
+  --line-strong: #d9d3c1;
+  --subtle: #f6f2e4;
+  --ring: rgba(26, 26, 26, 0.16);
+  --overlay: rgba(26, 26, 26, 0.45);
+}
+
+@theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-elevated: var(--card-elevated);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-subtle: var(--subtle);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
 
-  --font-sans: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
-  --font-body: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Bricolage Grotesque is the only typeface. JetBrains Mono is used solely
+     for figures and eyebrow labels, where tabular numerals matter. */
+  --font-sans: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --animate-fade-in: fade-in 0.3s ease-out;
-  --animate-slide-up: slide-up 0.4s ease-out;
-  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-slide-up: slide-up 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @layer base {
-  :root {
-    --background: #f8fafc;
-    --foreground: #131313;
-    --card: #ffffff;
-    --card-foreground: #131313;
-    --border: #e2e8f0;
-    --primary: #00f5ff;
-    --primary-foreground: #000000;
-  }
-
-  .dark {
-    --background: #131313;
-    --foreground: #e2e2e2;
-    --card: #0a0c10;
-    --card-foreground: #e2e2e2;
-    --border: rgba(255, 255, 255, 0.1);
-    --primary: #00f5ff;
-    --primary-foreground: #000000;
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
-    font-family: var(--font-body);
-    @apply bg-[var(--background)] text-[var(--foreground)] antialiased transition-colors duration-300;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    @apply bg-background text-foreground antialiased;
+    text-rendering: optimizeLegibility;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-sans);
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
+
+  h1 { font-weight: 700; }
+  h2 { font-weight: 600; }
+  h3 { font-weight: 600; }
 
   #root {
     @apply min-h-screen flex flex-col;
   }
+
+  ::selection {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
-@utility glass {
-  @apply bg-white/70 dark:bg-white/3 backdrop-blur-[20px] border border-white/20 dark:border-white/10 shadow-lg;
-}
-
-@utility glass-card {
-  @apply bg-white/70 dark:bg-white/3 backdrop-blur-[20px] border border-white/20 dark:border-white/10 shadow-lg rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1;
-}
-
-@utility text-gradient {
-  @apply bg-clip-text text-transparent bg-linear-to-r from-[#00f5ff] via-[#8a2be2] to-[#ff4d4d];
-}
-
-@utility ai-glow {
-  box-shadow: 0 0 16px rgba(0, 245, 255, 0.08), inset 0 0 2px rgba(0, 245, 255, 0.15);
-}
-
+/* ------------------------------- Keyframes ------------------------------- */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -85,51 +100,120 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Typing Indicator Animation (Breathe Animation) */
-.typing-indicator span {
+/* --------------------------- Typing indicator ---------------------------- */
+.typing-indicator span,
+.typing-dot {
   display: inline-block;
-  width: 6px;
-  height: 6px;
-  background-color: var(--color-brand-light);
+  width: 5px;
+  height: 5px;
+  background-color: var(--muted);
   border-radius: 50%;
   animation: typing 1.6s infinite ease-in-out both;
   margin: 0 2px;
 }
 
-.typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-.typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+.typing-indicator span:nth-child(1),
+.typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.typing-indicator span:nth-child(2),
+.typing-dot:nth-child(2) { animation-delay: -0.16s; }
 
 @keyframes typing {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
-  40% { opacity: 1; transform: scale(1.15); }
+  40% { opacity: 1; transform: scale(1.1); }
 }
 
-/* Animated and Blending Custom Scrollbar */
+/* ------------------------------ Scrollbar --------------------------------
+   Inset pill that picks up the warm hairline colour, so it reads as part of
+   the page rather than a grey OS artefact.
+------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 11px;
+  height: 11px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--background);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 245, 255, 0.2);
-  border: 1px solid var(--background);
+  background-color: var(--line-strong);
+  background-clip: content-box;
+  border: 3px solid transparent;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(138, 43, 226, 0.4);
+  background-color: var(--faint);
+  background-clip: content-box;
 }
 
-::-webkit-scrollbar-thumb:active {
-  background: rgba(0, 245, 255, 0.6);
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-/* Firefox compatibility */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 245, 255, 0.2) var(--background);
+/* Slimmer variant for dropdowns, chat panes and modals */
+.custom-scrollbar::-webkit-scrollbar { width: 8px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { border-width: 2px; }
+
+/* -------------------------------- Marquee --------------------------------
+   Kira's signature: an infinitely scrolling strip of large type. The track
+   holds two identical copies, so a -50% shift loops seamlessly.
+------------------------------------------------------------------------- */
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.marquee {
+  position: relative;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 42s linear infinite;
+  will-change: transform;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* --------------------------- Loading skeleton ---------------------------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--subtle);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--foreground) 5%, transparent),
+    transparent
+  );
+  animation: shimmer 1.8s infinite;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
 }

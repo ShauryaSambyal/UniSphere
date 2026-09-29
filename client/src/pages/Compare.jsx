@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import api from '../services/api';
-import { Check, X, Search } from 'lucide-react';
+import { Check, X, Search, Plus, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { fadeUp } from '../lib/motion';
 
 export default function Compare() {
   const [query, setQuery] = useState('');
@@ -39,115 +41,180 @@ export default function Compare() {
 
   const chartData = selectedColleges.map(c => ({
     name: c.shortName || c.name.split(' ')[0],
-    "Avg Package (LPA)": parseFloat(c.placements?.averagePackage) || 0,
-    "Highest Package (LPA)": parseFloat(c.placements?.highestPackage) || 0,
+    'Avg Package (LPA)': parseFloat(c.placements?.averagePackage) || 0,
+    'Highest Package (LPA)': parseFloat(c.placements?.highestPackage) || 0,
   }));
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 animate-fade-in">
-      <div className="mb-10 text-center">
-        <h1 className="text-4xl font-extrabold mb-4 text-gradient">Compare Colleges</h1>
-        <p className="text-gray-500 dark:text-gray-400">Select up to 3 colleges to compare side-by-side.</p>
-        
-        <div className="relative max-w-xl mx-auto mt-6">
-          <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400 focus-within:text-brand-light" />
+    <motion.div
+      initial="hidden"
+      animate="show"
+      variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
+      className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"
+    >
+      <motion.div {...fadeUp(0)} className="mb-10 text-center">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Side by side</span>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-foreground md:text-4xl">
+          Compare colleges
+        </h1>
+        <p className="mx-auto mt-2 max-w-md text-sm font-normal text-muted">
+          Select up to 3 colleges to compare fees, packages and rankings.
+        </p>
+
+        <div className="relative mx-auto mt-7 max-w-xl">
+          <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-faint" size={16} />
           <input
             type="text"
-            className="w-full pl-12 pr-4 py-3.5 glass-card focus:outline-none focus:ring-2 focus:ring-brand-light/50 focus:border-transparent text-foreground placeholder-gray-400 text-sm dark:bg-darkbg-card/45 dark:border-white/10"
-            placeholder="Search college to add..."
+            className="w-full rounded-xl border border-line bg-card py-3 pl-11 pr-4 text-sm font-normal text-foreground outline-none transition-colors duration-150 placeholder:text-faint focus:border-line-strong"
+            placeholder="Search college to add…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          {query.trim().length >= 2 && (
+            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+              <Loader2 size={14} className="animate-spin text-faint" />
+            </div>
+          )}
           {searchResults.length > 0 && (
-            <ul className="absolute top-full left-0 w-full mt-2 rounded-2xl overflow-hidden shadow-2xl bg-white/95 dark:bg-darkbg-card/90 backdrop-blur-[20px] border border-gray-200/80 dark:border-white/10 dark:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(0,245,255,0.08)] z-50 text-left p-1.5">
+            <ul className="absolute left-0 top-full z-50 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-card-elevated p-1.5 text-left shadow-[0_24px_56px_-24px_rgba(26,26,26,0.22)]">
               {searchResults.map(c => (
                 <li
                   key={c._id}
                   onClick={() => addCollege(c)}
-                  className="px-4 py-2.5 hover:bg-gradient-to-r hover:from-brand-light/10 hover:to-brand-purple/5 hover:text-brand-light transition-all duration-200 rounded-xl cursor-pointer text-foreground text-sm font-medium"
+                  className="group flex cursor-pointer items-center justify-between rounded-xl px-4 py-2.5 text-sm font-normal text-foreground transition-colors duration-150 hover:bg-subtle"
                 >
                   {c.name}
+                  <Plus size={13} className="text-faint transition-colors group-hover:text-foreground" />
                 </li>
               ))}
             </ul>
           )}
         </div>
-      </div>
+
+        {/* Selected chips */}
+        {selectedColleges.length > 0 && (
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+            {selectedColleges.map(c => (
+              <button
+                key={c._id}
+                onClick={() => removeCollege(c._id)}
+                className="group flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-card px-3.5 py-1.5 text-xs font-medium text-foreground transition-colors duration-150 hover:border-red-300 hover:text-red-600"
+                title="Remove"
+              >
+                {c.shortName || c.name.split(' ')[0]}
+                <X size={12} className="text-faint group-hover:text-red-500" />
+              </button>
+            ))}
+          </div>
+        )}
+      </motion.div>
 
       {selectedColleges.length > 0 ? (
-        <div className="space-y-12">
+        <div className="space-y-10">
           {/* Comparison Table */}
-          <div className="rounded-3xl border border-gray-200/80 dark:border-white/10 bg-white dark:bg-darkbg-card/45 backdrop-blur-sm overflow-hidden shadow-sm">
+          <motion.div {...fadeUp(0.05)} className="overflow-hidden rounded-2xl border border-line bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full border-collapse text-left">
                 <thead>
-                  <tr className="border-b border-gray-200/80 dark:border-white/10 bg-gray-50/50 dark:bg-black/25">
-                    <th className="p-4 font-bold text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">Feature</th>
+                  <tr className="border-b border-line bg-subtle">
+                    <th className="p-4 text-[11px] font-medium uppercase tracking-wider text-faint">Feature</th>
                     {selectedColleges.map(c => (
-                      <th key={c._id} className="p-4 font-extrabold text-base text-foreground relative min-w-[200px]">
+                      <th key={c._id} className="relative min-w-[200px] p-4 text-base font-semibold tracking-[-0.01em] text-foreground">
                         {c.shortName || c.name}
-                        <button onClick={() => removeCollege(c._id)} className="absolute top-4 right-4 text-gray-400 hover:text-brand-accent transition-colors cursor-pointer"><X className="h-4 w-4"/></button>
+                        <button
+                          onClick={() => removeCollege(c._id)}
+                          aria-label={`Remove ${c.shortName || c.name}`}
+                          className="absolute right-4 top-4 cursor-pointer text-faint transition-colors duration-150 hover:text-foreground"
+                        >
+                          <X size={14} />
+                        </button>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200/50 dark:divide-white/5 text-foreground text-sm font-medium">
+                <tbody className="divide-y divide-line text-sm">
                   <tr>
-                    <td className="p-4 text-gray-500 dark:text-gray-400">NIRF Ranking</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-mono text-xs">{c.ranking?.nirf || c.nirfRanking || 'N/A'}</td>)}
+                    <td className="p-4 font-normal text-muted">NIRF ranking</td>
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-mono text-xs text-foreground">{c.ranking?.nirf || c.nirfRanking || 'N/A'}</td>)}
                   </tr>
                   <tr>
-                    <td className="p-4 text-gray-500 dark:text-gray-400">Institute Type</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4"><span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-brand-purple/10 text-brand-purple dark:text-brand-light dark:bg-brand-light/5 px-2 py-0.5 rounded border border-brand-purple/10 dark:border-brand-light/10">{c.instituteType || 'Autonomous'}</span></td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 text-gray-500 dark:text-gray-400">Location</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4">{c.location?.city}, {c.location?.state}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 text-gray-500 dark:text-gray-400">Tuition Fee</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4 text-brand-light font-mono text-xs">{c.fees?.tuitionFee || c.fees?.tuition || 'N/A'}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 text-gray-500 dark:text-gray-400">Average Package</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4 text-brand-accent font-mono text-xs">{c.placements?.averagePackage || 'N/A'}</td>)}
-                  </tr>
-                  <tr>
-                    <td className="p-4 text-gray-500 dark:text-gray-400">Hostel Available</td>
+                    <td className="p-4 font-normal text-muted">Institute type</td>
                     {selectedColleges.map(c => (
                       <td key={c._id} className="p-4">
-                        {c.hostel?.available !== false ? <Check className="text-brand-light h-5 w-5"/> : <X className="text-brand-accent h-5 w-5"/>}
+                        <span className="rounded-md border border-line bg-subtle px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted">{c.instituteType || 'Autonomous'}</span>
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="p-4 font-normal text-muted">Location</td>
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-normal text-foreground">{c.location?.city}, {c.location?.state}</td>)}
+                  </tr>
+                  <tr>
+                    <td className="p-4 font-normal text-muted">Tuition fee</td>
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-medium text-foreground">{c.fees?.tuitionFee || c.fees?.tuition || 'N/A'}</td>)}
+                  </tr>
+                  <tr>
+                    <td className="p-4 font-normal text-muted">Average package</td>
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-medium text-foreground">{c.placements?.averagePackage || 'N/A'}</td>)}
+                  </tr>
+                  <tr>
+                    <td className="p-4 font-normal text-muted">Hostel available</td>
+                    {selectedColleges.map(c => (
+                      <td key={c._id} className="p-4">
+                        {c.hostel?.available !== false
+                          ? <Check size={16} className="text-foreground" />
+                          : <X size={16} className="text-faint" />}
                       </td>
                     ))}
                   </tr>
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
 
           {/* Placements Chart */}
-          <div className="rounded-3xl border border-gray-200/80 dark:border-white/10 bg-white dark:bg-darkbg-card/45 backdrop-blur-sm p-6 shadow-sm">
-            <h2 className="text-2xl font-bold mb-6">Placements Comparison</h2>
+          <motion.div {...fadeUp(0.1)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
+            <h2 className="mb-6 text-lg font-semibold tracking-[-0.01em] text-foreground">Placements comparison</h2>
             <div className="h-96 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#475569" opacity={0.15} />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
-                  <YAxis tickFormatter={(val) => `${val}L`} stroke="#94a3b8" />
-                  <Tooltip cursor={{fill: 'rgba(255,255,255,0.03)'}} contentStyle={{backgroundColor: '#0a0c10', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff'}} />
-                  <Legend />
-                  <Bar dataKey="Avg Package (LPA)" fill="var(--color-brand-light)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Highest Package (LPA)" fill="var(--color-brand-purple)" radius={[4, 4, 0, 0]} />
+                <BarChart data={chartData} margin={{ top: 20, right: 8, left: -16, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="2 6" stroke="var(--color-line-strong)" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+                  />
+                  <YAxis
+                    tickFormatter={(val) => `${val}L`}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: 'var(--color-subtle)' }}
+                    contentStyle={{
+                      backgroundColor: 'var(--color-card-elevated)',
+                      border: '1px solid var(--color-line-strong)',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: 'var(--color-foreground)',
+                    }}
+                  />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', color: 'var(--color-muted)' }} />
+                  <Bar dataKey="Avg Package (LPA)" fill="var(--color-foreground)" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                  <Bar dataKey="Highest Package (LPA)" fill="var(--color-faint)" radius={[6, 6, 0, 0]} maxBarSize={56} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </motion.div>
         </div>
       ) : (
-        <div className="text-center py-20 rounded-3xl border border-gray-200/80 dark:border-white/10 bg-white dark:bg-darkbg-card/45 backdrop-blur-sm shadow-sm">
-          <p className="text-xl text-gray-400 font-semibold">Search and add colleges to start comparing.</p>
-        </div>
+        <motion.div {...fadeUp(0.05)} className="rounded-2xl border border-dashed border-line-strong py-24 text-center">
+          <p className="text-lg font-medium text-muted">Search and add colleges to start comparing.</p>
+          <p className="mt-1 text-sm font-normal text-faint">Up to 3 institutions side by side.</p>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

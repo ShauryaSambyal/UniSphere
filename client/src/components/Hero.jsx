@@ -1,47 +1,55 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Award, Sparkles, GraduationCap, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, MapPin, Award, Sparkles, ArrowRight, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
+import Dropdown from './Dropdown';
+import { EASE, fadeUp, dropdownVariants, dropdownItem } from '../lib/motion';
 
-// Framer Motion variants for cascading suggestion dropdown
-const dropdownVariants = {
-  hidden: { opacity: 0, y: 12, scale: 0.98 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      type: 'spring',
-      stiffness: 300,
-      damping: 24,
-      staggerChildren: 0.04,
-      delayChildren: 0.02
-    }
-  },
-  exit: {
-    opacity: 0,
-    y: 8,
-    scale: 0.98,
-    transition: {
-      duration: 0.15,
-      ease: 'easeOut'
-    }
-  }
-};
+const HEADLINE_LINE_1 = ['Find', 'the', 'right', 'college,'];
+const HEADLINE_LINE_2 = ['decided', 'by', 'data.'];
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: 'spring',
-      stiffness: 300,
-      damping: 20
-    }
-  }
-};
+const STATS = [
+  { value: '990+', label: 'Indexed colleges' },
+  { value: 'RAG', label: 'Verified AI answers' },
+  { value: '6', label: 'Data dimensions compared' },
+];
+
+const MARQUEE_ITEMS = [
+  '990+ institutes indexed',
+  'Fees normalised by branch',
+  'Placements cross-checked',
+  'Cutoffs compared side by side',
+  'AI answers with sources',
+  'Six dimensions per college',
+];
+
+/* Quiet pill used by the three hero filters. */
+const PILL_TRIGGER =
+  'flex w-full cursor-pointer items-center justify-between gap-1.5 rounded-full border border-line bg-card px-4 py-2.5 text-xs font-medium text-foreground transition-colors duration-150 hover:border-line-strong';
+
+/**
+ * Reveals a headline one word at a time, rising out of a blur. Line two is
+ * delayed past the end of line one so the sentence reads in order.
+ */
+function WordLine({ words, delay = 0, className = '' }) {
+  return (
+    <span className={className}>
+      {words.map((word, index) => (
+        <motion.span
+          key={`${word}-${index}`}
+          initial={{ opacity: 0, y: '0.4em', filter: 'blur(10px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: 0.85, ease: EASE, delay: delay + index * 0.075 }}
+          className="inline-block"
+        >
+          {word}
+          {index < words.length - 1 ? '\u00A0' : ''}
+        </motion.span>
+      ))}
+    </span>
+  );
+}
 
 export default function Hero() {
   const navigate = useNavigate();
@@ -56,12 +64,11 @@ export default function Hero() {
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
 
-  // Options for selectors (could be fetched or hardcoded for seed data)
   const states = ['Karnataka', 'Maharashtra'];
   const cities = ['Bangalore', 'Mumbai'];
   const courses = ['Computer Science Engineering', 'Electronics & Communication Engineering', 'Bachelor of Business Administration'];
 
-  // Handle outside clicks to close autocomplete dropdown
+  // Handle outside clicks to close the autocomplete dropdown
   useEffect(() => {
     function handleClickOutside(event) {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -95,70 +102,88 @@ export default function Hero() {
     return () => clearTimeout(delayDebounce);
   }, [query]);
 
-  const handleFilterSearch = (e) => {
-    e.preventDefault();
-    // Redirect with filters as query params
+  // Submitting the search goes straight to the best match when we have one,
+  // otherwise it drops the visitor into the full directory.
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    if (suggestions.length > 0) {
+      navigate(`/college/${suggestions[0]._id}`);
+      setIsOpen(false);
+      return;
+    }
+    document.getElementById('listings-section')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleFilterSearch = (event) => {
+    event.preventDefault();
     const params = new URLSearchParams();
     if (selectedState) params.append('state', selectedState);
     if (selectedCity) params.append('city', selectedCity);
     if (selectedCourse) params.append('course', selectedCourse);
-    
+
     navigate(`/?${params.toString()}`);
-    // Smooth scroll down to listings
-    const target = document.getElementById('listings-section');
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth' });
-    }
+    document.getElementById('listings-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="relative overflow-hidden bg-linear-to-b from-blue-50/40 via-white to-gray-50 dark:from-darkbg-base/30 dark:via-darkbg-base dark:to-darkbg-base py-20 lg:py-28">
-      {/* Visual Background Accents */}
-      <div className="absolute right-0 top-0 -z-10 h-[500px] w-[500px] rounded-full bg-brand-light/5 blur-3xl" />
-      <div className="absolute left-0 bottom-0 -z-10 h-[400px] w-[400px] rounded-full bg-brand-accent/5 blur-3xl" />
+    <section className="relative overflow-hidden">
+      {/* Barely-there warm light behind the headline — the only ornament */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[460px]"
+        style={{
+          background:
+            'radial-gradient(900px 340px at 50% -140px, color-mix(in oklab, var(--foreground) 5%, transparent), transparent 72%)',
+        }}
+      />
 
-      <div className="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
-        {/* Animated Badge */}
+      <div className="mx-auto max-w-5xl px-5 pb-16 pt-16 text-center sm:px-6 sm:pt-20 lg:pb-20 lg:pt-24">
+        {/* Eyebrow */}
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-1.5 rounded-full bg-brand-light/10 border border-brand-light/20 px-4 py-1.5 text-xs font-semibold text-brand-light dark:text-brand-accent mb-6"
+          transition={{ duration: 0.6, ease: EASE }}
+          className="mb-8 inline-flex"
         >
-          <GraduationCap size={14} />
-          <span>RAG AI-Powered Decision Platform</span>
+          <span className="inline-flex items-center gap-2.5 rounded-full border border-line bg-card px-4 py-1.5 text-xs font-medium tracking-[0.01em] text-muted">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-40" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground" />
+            </span>
+            Grounded in verified campus data
+          </span>
         </motion.div>
 
-        {/* Heading */}
-        <motion.h1
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="font-sans text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl dark:text-white"
-        >
-          Find Your Perfect College <br />
-          With <span className="bg-linear-to-r from-brand-light via-brand-accent to-purple-600 bg-clip-text text-transparent">AI Guidance</span>
-        </motion.h1>
+        {/* Editorial serif headline — light weight, tight leading */}
+        <h1 className="mx-auto max-w-3xl text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.035em] text-foreground sm:text-6xl lg:text-[4.1rem]">
+          <WordLine words={HEADLINE_LINE_1} delay={0.12} className="block" />
+          <WordLine
+            words={HEADLINE_LINE_2}
+            delay={0.12 + HEADLINE_LINE_1.length * 0.075}
+            className="block"
+          />
+        </h1>
 
-        {/* Subtitle */}
+        {/* Subline */}
         <motion.p
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mx-auto mt-6 max-w-2xl text-base text-gray-500 sm:text-lg dark:text-gray-400"
+          {...fadeUp(0.6)}
+          className="mx-auto mt-7 max-w-xl text-[17px] font-normal leading-relaxed text-muted"
         >
-          Search colleges, compare placements & fees, discover nearby facilities, and ask our ChatGPT-like assistant anything based on verified campus data.
+          Search institutes, compare fees and placements, and ask the AI assistant
+          anything — every answer grounded in verified campus data.
         </motion.p>
 
-        {/* Search bar & Autocomplete */}
+        {/* Search */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+          {...fadeUp(0.68, 22)}
           className="relative mx-auto mt-10 max-w-xl"
           ref={containerRef}
         >
-          <div className="relative flex items-center rounded-2xl border border-gray-200 bg-white shadow-xl focus-within:border-brand-light dark:border-white/10 dark:bg-darkbg-card/45 backdrop-blur-md dark:focus-within:border-brand-light focus-within:ring-2 focus-within:ring-brand-light/20 transition-all duration-200">
-            <Search className="ml-4 text-gray-400 focus-within:text-brand-light" size={20} />
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex items-center gap-2 rounded-full border border-line bg-card py-1.5 pl-5 pr-1.5 shadow-[0_2px_4px_rgba(26,26,26,0.03),0_18px_44px_-24px_rgba(26,26,26,0.22)] transition-colors duration-200 focus-within:border-line-strong"
+          >
+            <Search size={17} strokeWidth={2} className="shrink-0 text-faint" />
             <input
               type="text"
               value={query}
@@ -167,15 +192,19 @@ export default function Hero() {
                 setIsOpen(true);
               }}
               onFocus={() => setIsOpen(true)}
-              placeholder="Search by college name, city, state, or course..."
-              className="w-full rounded-2xl bg-transparent py-4 pl-3 pr-10 text-sm text-gray-900 outline-none dark:text-white"
+              placeholder="Search by college, city, or course…"
+              className="w-full bg-transparent py-3 text-sm font-normal text-foreground outline-none placeholder:text-faint"
             />
-            {loading && (
-              <Loader2 className="absolute right-4 animate-spin text-brand-light" size={18} />
-            )}
-          </div>
+            {loading && <Loader2 size={15} className="shrink-0 animate-spin text-faint" />}
+            <button
+              type="submit"
+              className="shrink-0 cursor-pointer rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98]"
+            >
+              Search
+            </button>
+          </form>
 
-          {/* Autocomplete Dropdown */}
+          {/* Autocomplete */}
           <AnimatePresence>
             {isOpen && suggestions.length > 0 && (
               <motion.div
@@ -183,42 +212,46 @@ export default function Hero() {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 dark:bg-darkbg-card/90 shadow-2xl backdrop-blur-[20px] dark:border-white/10 dark:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(0,245,255,0.08)]"
+                className="absolute inset-x-0 top-full z-30 mt-3 overflow-hidden rounded-2xl border border-line bg-card text-left shadow-[0_24px_56px_-24px_rgba(26,26,26,0.28)]"
               >
-                <div className="p-2 text-left text-xs font-semibold text-gray-400 border-b border-gray-100 dark:border-white/10 dark:text-gray-400 px-4 py-2.5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles size={12} className="text-brand-light animate-pulse" />
-                    Search Suggestions
+                <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-faint">
+                    <Sparkles size={11} />
+                    Suggestions
                   </span>
-                  <span className="text-[10px] text-brand-light/75 font-mono uppercase tracking-wider">Instant Match</span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-faint">Instant match</span>
                 </div>
-                <ul className="max-h-64 overflow-y-auto p-1.5 custom-scrollbar">
+                <ul className="custom-scrollbar max-h-64 overflow-y-auto p-1.5">
                   {suggestions.map((college) => (
-                    <motion.li key={college._id} variants={itemVariants}>
+                    <motion.li key={college._id} variants={dropdownItem}>
                       <button
+                        type="button"
                         onClick={() => {
                           navigate(`/college/${college._id}`);
                           setIsOpen(false);
                           setQuery('');
                         }}
-                        className="group flex w-full items-center justify-between rounded-xl px-4 py-3 text-left border border-transparent hover:border-brand-light/20 hover:bg-gradient-to-r hover:from-brand-light/10 hover:to-brand-purple/5 hover:translate-x-1 transition-all duration-200 cursor-pointer"
+                        className="group flex w-full cursor-pointer items-center justify-between rounded-xl px-3.5 py-3 text-left transition-colors duration-150 hover:bg-subtle"
                       >
                         <div>
-                          <div className="text-sm font-semibold text-gray-900 dark:text-white group-hover:text-brand-light transition-colors">
-                            {college.name}
-                          </div>
-                          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">
-                            <span className="flex items-center gap-1 group-hover:text-gray-300 transition-colors">
-                              <MapPin size={12} className="text-brand-light" />
+                          <div className="text-sm font-medium text-foreground">{college.name}</div>
+                          <div className="mt-0.5 flex items-center gap-3 text-xs text-muted">
+                            <span className="flex items-center gap-1">
+                              <MapPin size={11} />
                               {college.location.city}, {college.location.state}
                             </span>
-                            <span className="flex items-center gap-1 font-mono text-[10px] bg-brand-purple/10 text-brand-purple dark:text-brand-light dark:bg-brand-light/5 px-1.5 py-0.5 rounded border border-brand-purple/10 dark:border-brand-light/10">
-                              <Award size={10} className="text-brand-accent animate-pulse" />
-                              NIRF: #{college.nirfRanking}
-                            </span>
+                            {college.nirfRanking && (
+                              <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-faint">
+                                <Award size={10} />
+                                NIRF #{college.nirfRanking}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <ChevronRight size={16} className="text-gray-400 group-hover:text-brand-light transition-all duration-200 group-hover:translate-x-0.5" />
+                        <ChevronRight
+                          size={15}
+                          className="text-faint transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-foreground"
+                        />
                       </button>
                     </motion.li>
                   ))}
@@ -228,64 +261,101 @@ export default function Hero() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Quick Filter Section */}
+        {/* Secondary action */}
+        <motion.div {...fadeUp(0.76)} className="mt-4 flex items-center justify-center">
+          <Link
+            to="/chat"
+            className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-foreground transition-colors duration-200 hover:bg-subtle"
+          >
+            or ask the AI assistant
+            <ArrowRight
+              size={14}
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
+            />
+          </Link>
+        </motion.div>
+
+        {/* Filters */}
         <motion.form
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          {...fadeUp(0.84)}
           onSubmit={handleFilterSearch}
-          className="mx-auto mt-8 max-w-4xl rounded-2xl border border-gray-200/60 bg-white/40 p-4 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-darkbg-card/45 grid grid-cols-2 md:grid-cols-4 gap-3 text-left"
+          className="mx-auto mt-8 flex flex-wrap items-center justify-center gap-2"
         >
-          {/* State filter */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400 px-1">State</label>
-            <select
+          <div className="w-[9.5rem]">
+            <Dropdown
               value={selectedState}
-              onChange={(e) => setSelectedState(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-xs text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-darkbg-card dark:text-white transition-all duration-200"
-            >
-              <option value="">All States</option>
-              {states.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+              onChange={setSelectedState}
+              options={states}
+              placeholder="Any state"
+              triggerClassName={PILL_TRIGGER}
+            />
           </div>
-
-          {/* City filter */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400 px-1">City</label>
-            <select
+          <div className="w-[8.5rem]">
+            <Dropdown
               value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-xs text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-darkbg-card dark:text-white transition-all duration-200"
-            >
-              <option value="">All Cities</option>
-              {cities.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+              onChange={setSelectedCity}
+              options={cities}
+              placeholder="Any city"
+              triggerClassName={PILL_TRIGGER}
+            />
           </div>
-
-          {/* Course filter */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400 px-1">Course</label>
-            <select
+          <div className="w-[13rem]">
+            <Dropdown
               value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-xs text-gray-900 outline-none focus:border-brand-light dark:border-white/10 dark:bg-darkbg-card dark:text-white transition-all duration-200"
-            >
-              <option value="">All Courses</option>
-              {courses.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+              onChange={setSelectedCourse}
+              options={courses}
+              placeholder="Any course"
+              triggerClassName={PILL_TRIGGER}
+            />
           </div>
-
-          {/* Apply button */}
-          <div className="col-span-2 md:col-span-1 flex items-end">
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-gradient-to-r from-brand-light via-brand-accent to-brand-purple py-2.5 text-xs font-bold text-gray-950 shadow-lg shadow-brand-light/10 hover:brightness-110 active:scale-[0.98] transition-all duration-200 h-[38px] flex items-center justify-center gap-1"
-            >
-              Apply Filters
-            </button>
-          </div>
+          <button
+            type="submit"
+            className="cursor-pointer rounded-full border border-foreground bg-foreground px-5 py-2.5 text-xs font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98]"
+          >
+            Apply filters
+          </button>
         </motion.form>
+
+        {/* Proof */}
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1, delayChildren: 1.05 } } }}
+          className="mx-auto mt-16 grid max-w-2xl grid-cols-3 divide-x divide-line"
+        >
+          {STATS.map((stat) => (
+            <motion.div
+              key={stat.label}
+              variants={{
+                hidden: { opacity: 0, y: 14 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
+              }}
+              className="px-4 py-2"
+            >
+              <div className="text-[1.9rem] font-semibold leading-none tracking-[-0.03em] text-foreground">
+                {stat.value}
+              </div>
+              <div className="mt-2 text-xs font-normal text-muted">{stat.label}</div>
+            </motion.div>
+          ))}
+        </motion.div>
       </div>
-    </div>
+
+      {/* Signature marquee */}
+      <div className="marquee border-t border-line py-6">
+        <div className="marquee-track">
+          {[0, 1].map((copy) => (
+            <div key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
+              {MARQUEE_ITEMS.map((item) => (
+                <span key={item} className="flex items-center whitespace-nowrap">
+                  <span className="px-7 text-xl font-medium text-muted sm:text-2xl">{item}</span>
+                  <span className="h-1 w-1 shrink-0 rounded-full bg-line-strong" />
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, BookOpen, Trash2, Bot, User, Loader2, ArrowRight, CornerDownLeft } from 'lucide-react';
+import { Send, BookOpen, Trash2, Bot, User, Loader2, CornerDownLeft } from 'lucide-react';
 import { API_BASE } from '../services/api';
+import { EASE } from '../lib/motion';
 
 export default function Chat() {
   const [messages, setMessages] = useState(() => {
@@ -47,21 +48,21 @@ export default function Chat() {
       .replace(/>/g, '&gt;');
 
     // Code blocks
-    html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 dark:bg-black/40 p-3 rounded-lg font-mono text-xs my-2 overflow-x-auto border border-gray-200/50 dark:border-white/5">$1</pre>');
-    
+    html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-subtle p-3 rounded-lg font-mono text-xs my-2 overflow-x-auto border border-line">$1</pre>');
+
     // Inline code
-    html = html.replace(/`([^`]+)`/g, '<code class="bg-gray-100 dark:bg-black/30 px-1 py-0.5 rounded font-mono text-xs text-brand-accent">$1</code>');
-    
+    html = html.replace(/`([^`]+)`/g, '<code class="bg-subtle px-1 py-0.5 rounded font-mono text-xs text-foreground">$1</code>');
+
     // Bold
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    
+
     // Bullet points
     html = html.replace(/^\s*[-*]\s+(.+)$/gm, '<li class="ml-4 list-disc my-1">$1</li>');
-    
+
     // Newlines
     html = html.replace(/\n/g, '<br />');
 
-    return <div dangerouslySetInnerHTML={{ __html: html }} className="space-y-1 text-sm leading-relaxed" />;
+    return <div dangerouslySetInnerHTML={{ __html: html }} className="space-y-1 text-sm leading-relaxed text-foreground" />;
   };
 
   const handleSend = async (textToSend) => {
@@ -105,7 +106,7 @@ export default function Chat() {
         if (!contentStarted && buffer.includes('\n[CONTENT_START]\n')) {
           const parts = buffer.split('\n[CONTENT_START]\n');
           const metaStr = parts[0];
-          
+
           try {
             const parsedMeta = JSON.parse(metaStr);
             parsedSources = parsedMeta.sources || [];
@@ -116,8 +117,8 @@ export default function Chat() {
           contentStarted = true;
           // Set streaming output to start with everything after CONTENT_START
           const contentText = parts.slice(1).join('\n[CONTENT_START]\n');
-          
-          setMessages(prev => prev.map(m => 
+
+          setMessages(prev => prev.map(m =>
             m.id === assistantMsgId
               ? { ...m, content: contentText, sources: parsedSources }
               : m
@@ -125,7 +126,7 @@ export default function Chat() {
           buffer = contentText;
         } else if (contentStarted) {
           // Streaming text chunks
-          setMessages(prev => prev.map(m => 
+          setMessages(prev => prev.map(m =>
             m.id === assistantMsgId
               ? { ...m, content: buffer }
               : m
@@ -134,7 +135,7 @@ export default function Chat() {
       }
     } catch (error) {
       console.error('Streaming failure:', error);
-      setMessages(prev => prev.map(m => 
+      setMessages(prev => prev.map(m =>
         m.id === assistantMsgId
           ? { ...m, content: 'Error: Failed to fetch reply from assistant. Make sure the backend server is running.' }
           : m
@@ -158,74 +159,80 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-gray-50 dark:bg-darkbg-base">
+    <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
       {/* Top Header */}
-      <div className="flex items-center justify-between border-b border-gray-200/50 bg-white/50 px-6 py-4 dark:border-white/5 dark:bg-darkbg-card/30 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-2">
-          <Bot className="text-brand-light dark:text-brand-accent animate-pulse" />
+      <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground">
+            <Bot size={14} className="text-background" />
+          </span>
           <div>
-            <h1 className="font-sans text-sm font-bold text-gray-900 dark:text-white">AI Search Chat</h1>
-            <p className="text-[10px] text-gray-500 dark:text-gray-400">RAG (ChromaDB + Gemini v1.5)</p>
+            <h1 className="text-sm font-medium text-foreground">AI search chat</h1>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-faint">RAG · ChromaDB + Gemini</p>
           </div>
         </div>
         <button
           onClick={clearHistory}
-          className="rounded-xl border border-gray-200 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:border-white/10 dark:hover:bg-red-500/10 transition-all"
+          aria-label="Clear chat history"
+          className="cursor-pointer rounded-lg border border-line p-2 text-faint transition-colors duration-150 hover:border-red-300 hover:text-red-500"
           title="Clear chat history"
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
         </button>
       </div>
 
       {/* Messages Scroll View */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
+      <div className="flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl space-y-6">
           <AnimatePresence>
             {messages.map((msg) => (
               <motion.div
                 key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex gap-4 p-5 border transition-all duration-200 ${
+                transition={{ duration: 0.35, ease: EASE }}
+                className={`flex gap-4 p-5 border rounded-2xl transition-colors duration-200 ${
                   msg.role === 'assistant'
-                    ? 'rounded-lg border-brand-light/10 bg-white dark:bg-darkbg-card/80 ai-glow dark:border-brand-light/10'
-                    : 'rounded-3xl border-brand-light/15 bg-brand-light/5 dark:border-brand-accent/10 dark:bg-brand-accent/5'
+                    ? 'border-line bg-card'
+                    : 'border-line bg-subtle'
                 }`}
               >
                 {/* Avatar Icon */}
-                <div className={`flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-xl text-gray-950 font-bold
-                  ${msg.role === 'assistant' ? 'bg-gradient-to-r from-brand-light to-brand-accent' : 'bg-gray-300 dark:bg-gray-700 dark:text-white'}
-                `}>
-                  {msg.role === 'assistant' ? <Bot size={16} /> : <User size={16} />}
+                <div className={`flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg ${
+                  msg.role === 'assistant' ? 'bg-foreground text-background' : 'border border-line bg-card text-muted'
+                }`}>
+                  {msg.role === 'assistant' ? <Bot size={15} /> : <User size={15} />}
                 </div>
 
                 {/* Body Content */}
-                <div className="flex-1 overflow-hidden space-y-3 text-gray-800 dark:text-gray-200">
+                <div className="flex-1 space-y-3 overflow-hidden">
                   {renderMarkdown(msg.content)}
 
-                  {/* Typing Indicator (Breathing dots) */}
+                  {/* Typing Indicator */}
                   {msg.role === 'assistant' && msg.content === '' && (
-                    <div className="flex items-center gap-1.5 py-1.5 typing-indicator">
-                      <span></span><span></span><span></span>
+                    <div className="flex items-center gap-1.5 py-1.5">
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
+                      <span className="typing-dot" />
                     </div>
                   )}
 
                   {/* Sources display */}
                   {msg.sources && msg.sources.length > 0 && (
-                    <div className="pt-3 border-t border-gray-100 dark:border-white/5 space-y-2">
-                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                        <BookOpen size={12} />
-                        <span>Sources Used</span>
+                    <div className="space-y-2 border-t border-line pt-3">
+                      <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-faint">
+                        <BookOpen size={11} />
+                        <span>Sources used</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {msg.sources.map((src, sIdx) => (
                           <div
                             key={sIdx}
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-xs text-gray-600 dark:border-white/5 dark:bg-darkbg-base dark:text-gray-400"
+                            className="inline-flex items-center gap-1 rounded-lg border border-line bg-background px-2.5 py-1 text-xs font-normal text-muted"
                           >
-                            <span className="font-bold text-brand-light dark:text-brand-light">[{sIdx + 1}]</span>
+                            <span className="font-mono text-[10px] font-medium text-foreground">[{sIdx + 1}]</span>
                             <span>{src.shortName || src.name}</span>
-                            <span className="text-[10px] text-gray-400">({src.city})</span>
+                            <span className="text-[10px] text-faint">({src.city})</span>
                           </div>
                         ))}
                       </div>
@@ -240,7 +247,7 @@ export default function Chat() {
       </div>
 
       {/* Suggested Prompts & Input Area */}
-      <div className="border-t border-gray-200/50 bg-white/40 p-4 dark:border-white/5 dark:bg-darkbg-card/25 backdrop-blur-md shrink-0">
+      <div className="shrink-0 border-t border-line p-4">
         <div className="mx-auto max-w-3xl space-y-4">
           {/* Quick Prompts list (Only show if loading is false) */}
           {!loading && messages.length <= 1 && (
@@ -249,10 +256,9 @@ export default function Chat() {
                 <button
                   key={pIdx}
                   onClick={() => handleSend(prompt)}
-                  className="rounded-xl border border-gray-200/60 bg-white px-3 py-1.5 text-xs text-gray-600 hover:border-brand-light hover:text-brand-light dark:border-white/5 dark:bg-darkbg-card dark:text-gray-400 dark:hover:border-brand-accent dark:hover:text-white transition-all duration-150 flex items-center gap-1 font-semibold cursor-pointer"
+                  className="flex cursor-pointer items-center gap-1 rounded-full border border-line bg-card px-3.5 py-1.5 text-xs font-normal text-muted transition-all duration-150 hover:border-line-strong hover:text-foreground"
                 >
                   {prompt}
-                  <ArrowRight size={10} />
                 </button>
               ))}
             </div>
@@ -264,26 +270,26 @@ export default function Chat() {
               e.preventDefault();
               handleSend();
             }}
-            className="relative flex items-center rounded-2xl border border-gray-200 bg-white shadow-lg focus-within:border-brand-light dark:border-white/10 dark:bg-darkbg-card dark:focus-within:border-brand-light focus-within:ring-2 focus-within:ring-brand-light/20 transition-all duration-200"
+            className="relative flex items-center rounded-2xl border border-line bg-card transition-colors duration-150 focus-within:border-line-strong"
           >
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything about fees, placement records, locations, or hostels..."
+              placeholder="Ask anything about fees, placement records, locations, or hostels…"
               disabled={loading}
-              className="w-full rounded-2xl bg-transparent py-4.5 pl-4 pr-16 text-sm text-gray-900 outline-none dark:text-white"
+              className="w-full rounded-2xl bg-transparent py-4 pl-4 pr-24 text-sm font-normal text-foreground outline-none placeholder:text-faint"
             />
             <div className="absolute right-3 flex items-center gap-2">
-              <span className="hidden sm:inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-400 font-mono border border-gray-200/50 dark:bg-black/20 dark:border-white/5">
+              <span className="hidden items-center gap-1 rounded border border-line bg-subtle px-1.5 py-0.5 font-mono text-[10px] text-faint sm:inline-flex">
                 <CornerDownLeft size={10} /> Enter
               </span>
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className="rounded-xl bg-gradient-to-r from-brand-light to-brand-accent p-2.5 text-gray-950 shadow hover:brightness-110 disabled:opacity-50 transition-all duration-200 cursor-pointer"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl bg-foreground text-background transition-all duration-200 hover:opacity-85 active:scale-95 disabled:opacity-40"
               >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               </button>
             </div>
           </form>

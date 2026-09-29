@@ -1,180 +1,179 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Sun, Moon, LogIn, LogOut, ShieldAlert, Sparkles, HelpCircle, Layers, Compass, Menu, X } from 'lucide-react';
+import { LogIn, LogOut, ShieldAlert, Sparkles, HelpCircle, Layers, Compass, Menu, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import LoginModal from './LoginModal';
+
+const NAV_LINKS = [
+  { to: '/', label: 'Explore', icon: Compass },
+  { to: '/compare', label: 'Compare', icon: Layers },
+  { to: '/chat', label: 'AI Assistant', icon: HelpCircle },
+  { to: '/recommendations', label: 'Match Maker', icon: Sparkles },
+];
 
 export default function Navbar() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const isActive = (path) => location.pathname === path;
 
-  const linkClass = (path) => `
-    flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200
-    ${isActive(path)
-      ? 'bg-gradient-to-r from-brand-light/10 to-brand-accent/10 text-brand-light dark:text-brand-accent border border-brand-light/20'
-      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5'
-    }
-  `;
+  const linkClass = (path) =>
+    `relative flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm transition-colors duration-200 ${
+      isActive(path)
+        ? 'text-foreground'
+        : 'text-muted hover:text-foreground'
+    }`;
 
   return (
     <>
-      <nav className="sticky top-0 z-40 w-full border-b border-gray-200/50 bg-white/70 backdrop-blur-md dark:border-white/5 dark:bg-darkbg-base/70">
+      <nav className="sticky top-0 z-40 w-full border-b border-line bg-background/85 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2 font-sans text-xl font-extrabold tracking-tight bg-gradient-to-r from-brand-light via-brand-accent to-brand-purple bg-clip-text text-transparent">
-              <Sparkles className="text-brand-light dark:text-brand-accent animate-pulse" size={24} />
+            <Link to="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background">
+                <Sparkles size={15} strokeWidth={2.2} />
+              </span>
               <span>UniSphere</span>
             </Link>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-2">
-              <Link to="/" className={linkClass('/')}>
-                <Compass size={16} />
-                Explore
-              </Link>
-              <Link to="/compare" className={linkClass('/compare')}>
-                <Layers size={16} />
-                Compare
-              </Link>
-              <Link to="/chat" className={linkClass('/chat')}>
-                <HelpCircle size={16} />
-                AI Assistant
-              </Link>
-              <Link to="/recommendations" className={linkClass('/recommendations')}>
-                <Sparkles size={16} />
-                Match Maker
-              </Link>
+            <div className="hidden items-center gap-1 md:flex">
+              {NAV_LINKS.map(({ to, label, icon: Icon }) => (
+                <Link key={to} to={to} className={linkClass(to)}>
+                  {isActive(to) && (
+                    <motion.span
+                      layoutId="nav-pill"
+                      className="absolute inset-0 rounded-lg bg-subtle"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                  <Icon size={15} className="relative z-10" strokeWidth={2} />
+                  <span className="relative z-10 font-medium">{label}</span>
+                </Link>
+              ))}
               {isAdmin && (
                 <Link to="/admin" className={linkClass('/admin')}>
-                  <ShieldAlert size={16} />
-                  Admin
+                  {isActive('/admin') && (
+                    <motion.span
+                      layoutId="nav-pill"
+                      className="absolute inset-0 rounded-lg bg-subtle"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                  <ShieldAlert size={15} className="relative z-10" strokeWidth={2} />
+                  <span className="relative z-10 font-medium">Admin</span>
                 </Link>
               )}
             </div>
 
             {/* Right Buttons */}
-            <div className="hidden md:flex items-center gap-4">
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                className="rounded-xl border border-gray-200/60 p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:border-white/10 dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/5 transition-all duration-200"
-                aria-label="Toggle theme"
-              >
-                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-
-              {/* Auth Button */}
+            <div className="hidden items-center gap-3 md:flex">
               {isAuthenticated ? (
                 <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-gray-800 dark:text-white">{user.name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user.role}</div>
+                  <div className="text-right leading-tight">
+                    <div className="text-sm font-semibold text-foreground">{user.name}</div>
+                    <div className="text-xs capitalize text-muted">{user.role}</div>
                   </div>
                   <button
                     onClick={logout}
-                    className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white transition-all duration-200"
+                    className="flex items-center gap-1.5 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-muted transition-colors hover:border-line-strong hover:text-foreground"
                   >
-                    <LogOut size={16} />
+                    <LogOut size={15} />
                     Logout
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => setIsLoginOpen(true)}
-                  className="flex items-center gap-1.5 rounded-xl bg-gray-900 px-5 py-2 text-sm font-semibold text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 active:scale-[0.98] transition-all duration-200"
+                  className="flex items-center gap-1.5 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-all duration-200 hover:opacity-85 active:scale-[0.98]"
                 >
-                  <LogIn size={16} />
+                  <LogIn size={15} />
                   Sign In
                 </button>
               )}
             </div>
 
             {/* Mobile Menu Toggle */}
-            <div className="flex items-center gap-3 md:hidden">
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                className="rounded-xl border border-gray-200/60 p-2 text-gray-500 dark:border-white/10 dark:text-gray-400"
-              >
-                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-
+            <div className="flex items-center gap-2 md:hidden">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="rounded-xl border border-gray-200/60 p-2 text-gray-500 dark:border-white/10 dark:text-gray-400"
+                className="rounded-lg border border-line p-2 text-muted"
+                aria-label="Toggle menu"
               >
-                {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+                {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
           </div>
         </div>
 
         {/* Mobile Navigation Drawer */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 bg-white/95 p-4 dark:border-white/5 dark:bg-darkbg-base/95 space-y-2">
-            <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={linkClass('/')}>
-              <Compass size={16} />
-              Explore Colleges
-            </Link>
-            <Link to="/compare" onClick={() => setIsMobileMenuOpen(false)} className={linkClass('/compare')}>
-              <Layers size={16} />
-              Compare Colleges
-            </Link>
-            <Link to="/chat" onClick={() => setIsMobileMenuOpen(false)} className={linkClass('/chat')}>
-              <HelpCircle size={16} />
-              AI Assistant
-            </Link>
-            <Link to="/recommendations" onClick={() => setIsMobileMenuOpen(false)} className={linkClass('/recommendations')}>
-              <Sparkles size={16} />
-              Match Maker
-            </Link>
-            {isAdmin && (
-              <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className={linkClass('/admin')}>
-                <ShieldAlert size={16} />
-                Admin Dashboard
-              </Link>
-            )}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="overflow-hidden border-t border-line md:hidden"
+            >
+              <div className="space-y-1 p-4">
+                {[...NAV_LINKS, ...(isAdmin ? [{ to: '/admin', label: 'Admin Dashboard', icon: ShieldAlert }] : [])].map(
+                  ({ to, label, icon: Icon }) => (
+                    <Link
+                      key={to}
+                      to={to}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-colors ${
+                        isActive(to)
+                          ? 'bg-subtle text-foreground'
+                          : 'text-muted hover:bg-subtle hover:text-foreground'
+                      }`}
+                    >
+                      <Icon size={15} />
+                      {label}
+                    </Link>
+                  )
+                )}
 
-            <hr className="border-gray-200 dark:border-white/10 my-2" />
+                <hr className="my-3 border-line" />
 
-            {isAuthenticated ? (
-              <div className="flex items-center justify-between pt-2">
-                <div>
-                  <div className="text-sm font-semibold text-gray-800 dark:text-white">{user.name}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
-                </div>
-                <button
-                  onClick={() => {
-                    logout();
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-600 dark:border-white/10 dark:text-gray-300"
-                >
-                  <LogOut size={14} />
-                  Logout
-                </button>
+                {isAuthenticated ? (
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{user.name}</div>
+                      <div className="text-xs text-muted">{user.email}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-muted"
+                    >
+                      <LogOut size={14} />
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setIsLoginOpen(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-foreground py-2.5 text-sm font-medium text-background"
+                  >
+                    <LogIn size={15} />
+                    Sign In
+                  </button>
+                )}
               </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsLoginOpen(true);
-                  setIsMobileMenuOpen(false);
-                }}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-gray-900"
-              >
-                <LogIn size={16} />
-                Sign In
-              </button>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Auth Modal */}
