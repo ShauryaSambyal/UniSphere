@@ -6,8 +6,18 @@ import api from '../services/api';
 import Dropdown from './Dropdown';
 import { EASE, fadeUp, dropdownVariants, dropdownItem } from '../lib/motion';
 
-const HEADLINE_LINE_1 = ['Find', 'the', 'right', 'college,'];
-const HEADLINE_LINE_2 = ['decided', 'by', 'data.'];
+/* `mark: true` paints the word with the mint highlighter swash. */
+const HEADLINE_LINE_1 = [
+  { text: 'Find' },
+  { text: 'the' },
+  { text: 'right' },
+  { text: 'college,', mark: true },
+];
+const HEADLINE_LINE_2 = [
+  { text: 'decided' },
+  { text: 'by' },
+  { text: 'data.' },
+];
 
 const STATS = [
   { value: '990+', label: 'Indexed colleges' },
@@ -37,13 +47,13 @@ function WordLine({ words, delay = 0, className = '' }) {
     <span className={className}>
       {words.map((word, index) => (
         <motion.span
-          key={`${word}-${index}`}
+          key={`${word.text}-${index}`}
           initial={{ opacity: 0, y: '0.4em', filter: 'blur(10px)' }}
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{ duration: 0.85, ease: EASE, delay: delay + index * 0.075 }}
           className="inline-block"
         >
-          {word}
+          {word.mark ? <span className="mark">{word.text}</span> : word.text}
           {index < words.length - 1 ? '\u00A0' : ''}
         </motion.span>
       ))}
@@ -147,15 +157,15 @@ export default function Hero() {
         >
           <span className="inline-flex items-center gap-2.5 rounded-full border border-line bg-card px-4 py-1.5 text-xs font-medium tracking-[0.01em] text-muted">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-40" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
             </span>
             Grounded in verified campus data
           </span>
         </motion.div>
 
-        {/* Editorial serif headline — light weight, tight leading */}
-        <h1 className="mx-auto max-w-3xl text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.035em] text-foreground sm:text-6xl lg:text-[4.1rem]">
+        {/* Display headline — the marked word carries the mint accent */}
+        <h1 className="mx-auto max-w-3xl text-[2.5rem] font-semibold leading-[1.12] tracking-[-0.035em] text-foreground sm:text-6xl lg:text-[4.1rem]">
           <WordLine words={HEADLINE_LINE_1} delay={0.12} className="block" />
           <WordLine
             words={HEADLINE_LINE_2}
@@ -349,7 +359,7 @@ export default function Hero() {
               {MARQUEE_ITEMS.map((item) => (
                 <span key={item} className="flex items-center whitespace-nowrap">
                   <span className="px-7 text-xl font-medium text-muted sm:text-2xl">{item}</span>
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-line-strong" />
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                 </span>
               ))}
             </div>

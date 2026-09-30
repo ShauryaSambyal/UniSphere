@@ -16,17 +16,22 @@
 :root {
   color-scheme: light;
 
-  --background: #fffdf0;
+  --background: #fffdf0;   /* Kira cream */
   --foreground: #1a1a1a;
   --card: #ffffff;
   --card-elevated: #ffffff;
-  --muted: #6b6761;
-  --faint: #9a958b;
-  --line: #e9e4d5;
-  --line-strong: #d9d3c1;
-  --subtle: #f6f2e4;
+  --muted: #6b6761;        /* Kira body grey */
+  --faint: #a29b8b;
+  --line: #ece6d6;
+  --line-strong: #dcd5c0;
+  --subtle: #f7f3e6;
   --ring: rgba(26, 26, 26, 0.16);
   --overlay: rgba(26, 26, 26, 0.45);
+
+  /* Kira's one accent: a mint marker swash. It is deliberately used for
+     nothing else — no mint text, borders or buttons anywhere on their site. */
+  --accent: #56eaaf;
+  --accent-soft: rgba(86, 234, 175, 0.24);
 }
 
 @theme inline {
@@ -41,6 +46,8 @@
   --color-subtle: var(--subtle);
   --color-ring: var(--ring);
   --color-overlay: var(--overlay);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
 
   /* Bricolage Grotesque is the only typeface. JetBrains Mono is used solely
      for figures and eyebrow labels, where tabular numerals matter. */
@@ -87,6 +94,24 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+}
+
+/* --------------------------- Marker highlight ----------------------------
+   The signature hero accent. Sizes are in `em` so a mark scales with whatever
+   headline it sits in; at Kira's 56px this reproduces their measured 14px
+   corner radius and 8px side padding exactly.
+
+   Kept `display: inline` on purpose: an inline box's background is painted to
+   the font's content box, so it covers ascenders and descenders like a real
+   highlighter and never disturbs the headline's line layout.
+------------------------------------------------------------------------- */
+@utility mark {
+  background-color: var(--accent);
+  color: var(--foreground);
+  border-radius: 0.25em;
+  padding: 0 0.143em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 /* ------------------------------- Keyframes ------------------------------- */
