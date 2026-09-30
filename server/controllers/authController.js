@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import '../config/env.js';
+import { verifyFirebaseIdToken } from '../services/firebaseTokenService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_in_production';
 
@@ -87,6 +88,69 @@ export async function login(req, res) {
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ message: 'Login failed', error: error.message });
+  }
+}
+
+/**
+ * Exchange a Firebase ID token for the app's own JWT.
+ * Body: { idToken, name?, role? }
+ *
+ * Firebase users are mirrored into MongoDB on first sign-in (and linked to
+ * existing local accounts with the same email), so roles and all existing
+ * protected routes keep working unchanged.
+ */
+export async function firebaseAuth(req, res) {
+  try {
+    const { idToken, name, role } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ message: 'Firebase ID token is required' });
+    }
+
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (!projectId) {
+      return res.status(503).json({
+        message: 'Firebase authentication is not configured on the server. Set FIREBASE_PROJECT_ID in server/.env.'
+      });
+    }
+
+    const payload = await verifyFirebaseIdToken(idToken, projectId);
+    const email = String(payload.email || '').toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ message: 'Firebase account has no email address' });
+    }
+
+    const firebaseUid = payload.user_id || payload.sub;
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        name: name || payload.name || email.split('@')[0],
+        email,
+        firebaseUid,
+        role: role === 'admin' ? 'admin' : 'student'
+      });
+    } else if (!user.firebaseUid) {
+      // Link this local account (e.g. a seeded demo user) to Firebase.
+      user.firebaseUid = firebaseUid;
+      await user.save();
+    }
+
+    const token = generateToken(user._id);
+
+    return res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error('Firebase auth error:', error.message);
+    return res.status(401).json({ message: 'Invalid or expired Firebase token' });
   }
 }
 

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, MapPin, Award, IndianRupee, ChevronRight, SearchX, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import Dropdown from '../components/Dropdown';
+import useCollegeFilters from '../lib/useCollegeFilters';
+import { prettyLabel } from '../lib/format';
 import { EASE, fadeUp } from '../lib/motion';
 
 export default function Recommendations() {
@@ -16,15 +18,10 @@ export default function Recommendations() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState('');
 
-  const states = ['Karnataka', 'Maharashtra'];
-  const cities = ['Bangalore', 'Mumbai'];
-  const courses = [
-    { value: 'Computer Science Engineering', label: 'Computer Science Engineering' },
-    { value: 'Information Science Engineering', label: 'Information Science Engineering' },
-    { value: 'Electronics & Communication Engineering', label: 'Electronics & Communication Engineering' },
-    { value: 'Bachelor of Business Administration', label: 'BBA / MBA Management' }
-  ];
+  // Every state / city / course present in the database (with an offline fallback).
+  const { states, cities, courses } = useCollegeFilters();
 
   const budgets = [
     { value: '2.5 Lakh / Year', label: 'Under 2.5 Lakh / Year' },
@@ -36,6 +33,7 @@ export default function Recommendations() {
     e.preventDefault();
     setLoading(true);
     setSearched(true);
+    setError('');
     try {
       const res = await api.post('/colleges/recommendations', {
         state,
@@ -46,6 +44,8 @@ export default function Recommendations() {
       setResults(res.data);
     } catch (err) {
       console.error('Recommendations match query failed:', err);
+      setResults([]);
+      setError('Could not reach the recommendation service. Make sure the backend server is running and try again.');
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function Recommendations() {
             <Dropdown
               value={state}
               onChange={setState}
-              options={states}
+              options={states.map((value) => ({ value, label: value }))}
               placeholder="Any state"
               triggerClassName={selectTrigger}
             />
@@ -93,7 +93,7 @@ export default function Recommendations() {
             <Dropdown
               value={preferredCity}
               onChange={setPreferredCity}
-              options={cities}
+              options={cities.map((value) => ({ value, label: prettyLabel(value) }))}
               placeholder="Any city"
               triggerClassName={selectTrigger}
             />
@@ -105,7 +105,7 @@ export default function Recommendations() {
             <Dropdown
               value={course}
               onChange={setCourse}
-              options={courses}
+              options={courses.map((value) => ({ value, label: value }))}
               placeholder="Any course"
               triggerClassName={selectTrigger}
             />
@@ -153,6 +153,12 @@ export default function Recommendations() {
               <div key={n} className="skeleton h-36 w-full rounded-2xl" />
             ))}
           </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-dashed border-line-strong py-16 text-center">
+            <SearchX className="mx-auto mb-4 text-faint" size={36} />
+            <h3 className="text-lg font-medium text-foreground">Couldn't load recommendations</h3>
+            <p className="mt-1 text-sm font-normal text-muted">{error}</p>
+          </div>
         ) : searched && results.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-line-strong py-16 text-center">
             <SearchX className="mx-auto mb-4 text-faint" size={36} />
@@ -184,27 +190,27 @@ export default function Recommendations() {
                         </span>
                         <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted">
                           <Award size={11} className="text-faint" />
-                          NIRF #{item.nirfRanking}
+                          NIRF #{item.nirfRanking || item.ranking?.nirf || '—'}
                         </span>
                       </div>
                       <h4 className="mt-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">{item.name}</h4>
                       <p className="mt-1 flex items-center gap-1 text-xs font-normal text-muted">
                         <MapPin size={12} className="text-faint" />
-                        {item.location.city}, {item.location.state}
+                        {item.location?.city || '—'}, {item.location?.state || '—'}
                       </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4">
                       <div className="min-w-[110px] rounded-xl border border-line bg-subtle p-3">
                         <div className="text-[10px] font-medium uppercase tracking-wider text-faint">Avg pkg</div>
-                        <div className="mt-0.5 font-mono text-xs font-medium text-foreground">{item.placements?.averagePackage}</div>
+                        <div className="mt-0.5 font-mono text-xs font-medium text-foreground">{item.placements?.averagePackage || 'N/A'}</div>
                       </div>
 
                       <div className="min-w-[110px] rounded-xl border border-line bg-subtle p-3">
                         <div className="text-[10px] font-medium uppercase tracking-wider text-faint">Tuition</div>
                         <div className="mt-0.5 flex items-center gap-1 font-mono text-xs font-medium text-foreground">
                           <IndianRupee size={11} className="text-faint" />
-                          {item.fees?.tuition.split('/')[0]}
+                          {item.fees?.tuition?.split('/')[0] || item.fees?.tuitionFee || 'N/A'}
                         </div>
                       </div>
 

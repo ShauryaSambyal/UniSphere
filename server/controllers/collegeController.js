@@ -47,6 +47,65 @@ export async function searchAutocomplete(req, res) {
 }
 
 /**
+ * Distinct filter values for the search dropdowns (states, cities, courses).
+ * Returned straight from the indexed data, so the dropdowns always reflect
+ * every state / branch that actually exists in the database.
+ */
+export async function getFilterOptions(req, res) {
+  try {
+    const [states, cities, courses] = await Promise.all([
+      College.distinct('location.state'),
+      College.distinct('location.city'),
+      College.distinct('courses')
+    ]);
+
+    const clean = (values) =>
+      [...new Set(
+        values
+          .filter(v => typeof v === 'string' && v.trim())
+          .map(v => v.trim())
+      )].sort((a, b) => a.localeCompare(b));
+
+    return res.json({
+      states: clean(states),
+      cities: clean(cities),
+      courses: clean(courses)
+    });
+  } catch (error) {
+    console.error('Error in getFilterOptions:', error);
+    return res.status(500).json({ message: 'Failed to fetch filter options' });
+  }
+}
+
+/**
+ * Fetch several colleges by ID in one round-trip (used by the Compare page
+ * when it is opened with ?a=<id>&b=<id>). Unlike GET /:id this does not
+ * trigger the lazy nearby-places fetch, so it stays fast.
+ */
+export async function getCollegesByIds(req, res) {
+  try {
+    const ids = String(req.query.ids || '')
+      .split(',')
+      .map(id => id.trim())
+      .filter(id => /^[a-f0-9]{24}$/i.test(id))
+      .slice(0, 10);
+
+    if (ids.length === 0) return res.json([]);
+
+    const colleges = await College.find({ _id: { $in: ids } }).populate('nearbyPlaces');
+
+    // Preserve the requested order
+    const order = new Map(ids.map((id, index) => [id, index]));
+    colleges.sort((a, b) => order.get(a._id.toString()) - order.get(b._id.toString()));
+
+    return res.json(colleges);
+  } catch (error) {
+    console.error('Error in getCollegesByIds:', error);
+    return res.status(500).json({ message: 'Failed to fetch colleges' });
+  }
+}
+
+/**
  * Get detailed college by ID (including nearby places from Google Places API).
  */
 export async function getCollegeById(req, res) {
@@ -258,86 +317,135 @@ export async function importColleges(req, res) {
   }
 }
 
+// Degree / filler words that add no signal when matching a course name. This
+// lets "Computer Science Engineering" match "Computer Science", "B.Tech in
+// Computer Science & Engineering", and so on.
+const COURSE_STOPWORDS = new Set([
+  'engineering', 'engineer', 'bachelor', 'bachelors', 'master', 'masters',
+  'btech', 'mtech', 'integrated', 'degree', 'honours', 'honors', 'science',
+  'in', 'of', 'and', 'the', 'sc', 'tech', 'b', 'm'
+]);
+
+const escapeRegex = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const courseTokens = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter(token => token.length >= 2 && !COURSE_STOPWORDS.has(token));
+
+/** Parses "3.5 Lakh / Year", "1.6 CR / Year" or a raw number into rupees. */
+const parseMoney = (value) => {
+  if (value == null) return 0;
+  if (typeof value === 'number') return value;
+
+  const str = String(value).replace(/,/g, '');
+  const cr = str.match(/([\d.]+)\s*cr/i);
+  if (cr) return parseFloat(cr[1]) * 10000000;
+
+  const lakh = str.match(/([\d.]+)\s*lakh/i);
+  if (lakh) return parseFloat(lakh[1]) * 100000;
+
+  const num = str.match(/\d+/);
+  return num ? parseInt(num[0], 10) : 0;
+};
+
+const collegeRank = (college) =>
+  college.nirfRanking || college.ranking?.nirf || 9999;
+
+/**
+ * Score a single college against the preferences.
+ * Returns a numeric score plus the fraction of course tokens that matched.
+ */
+const scoreCollege = (college, { budget, preferredCity, wantedTokens }) => {
+  let score = 0;
+
+  // 1. NIRF ranking (lower is better)
+  const rank = collegeRank(college);
+  if (rank < 50) score += 60;
+  else if (rank < 100) score += 40;
+  else if (rank < 200) score += 20;
+  else score += 5;
+
+  // 2. Average placement package
+  const pkgMatch = String(college.placements?.averagePackage || '').match(/([\d.]+)\s*LPA/i);
+  if (pkgMatch) {
+    const pkgVal = parseFloat(pkgMatch[1]);
+    if (pkgVal > 15) score += 50;
+    else if (pkgVal > 10) score += 40;
+    else if (pkgVal > 6) score += 25;
+    else score += 10;
+  }
+
+  // 3. Tuition budget
+  if (budget) {
+    const tuitionVal = parseMoney(college.fees?.tuition || college.fees?.tuitionFee);
+    const budgetVal = parseMoney(budget);
+    if (tuitionVal > 0 && budgetVal > 0) {
+      if (tuitionVal <= budgetVal) score += 30; // fits within budget
+      else if (tuitionVal <= budgetVal * 1.25) score += 15; // slightly over
+    }
+  }
+
+  // 4. Preferred city
+  if (preferredCity && college.location?.city?.toLowerCase() === preferredCity.toLowerCase()) {
+    score += 25;
+  }
+
+  // 5. Course / branch relevance (token overlap keeps this forgiving)
+  let courseRatio = 0;
+  if (wantedTokens.length > 0) {
+    const offered = new Set(courseTokens((college.courses || []).join(' ')));
+    const matched = wantedTokens.filter(token => offered.has(token)).length;
+    courseRatio = matched / wantedTokens.length;
+    score += Math.round(courseRatio * 80);
+  }
+
+  return { college, score, courseRatio };
+};
+
 /**
  * Recommendations Engine.
  * Input: { state, course, budget, preferredCity }
+ *
+ * Matching is intentionally forgiving: a state/course combination that has no
+ * exact rows must still return useful suggestions (ranked by relevance)
+ * instead of an empty list.
  */
 export async function getRecommendations(req, res) {
   try {
-    const { state, course, budget, preferredCity } = req.body;
-    const query = {};
+    const { state, course, budget, preferredCity } = req.body || {};
+    const wantedTokens = courseTokens(course);
+    const prefs = { budget, preferredCity, wantedTokens };
 
-    if (state) query['location.state'] = new RegExp(state, 'i');
-    if (course) query.courses = new RegExp(course, 'i');
+    // Prefer colleges inside the requested state, but never let that filter
+    // produce an empty result set.
+    let colleges = state
+      ? await College.find({ 'location.state': new RegExp(escapeRegex(state), 'i') })
+      : await College.find({});
 
-    const colleges = await College.find(query);
+    if (colleges.length === 0) {
+      colleges = await College.find({});
+    }
 
-    // Score and rank colleges
-    const scoredColleges = colleges.map(college => {
-      let score = 0;
+    let scored = colleges.map(college => scoreCollege(college, prefs));
 
-      // 1. NIRF Ranking scoring (Lower is better, e.g. Rank 1 gets 100 points, Rank 200 gets 5 points)
-      const rank = college.nirfRanking || 9999;
-      if (rank < 50) score += 60;
-      else if (rank < 100) score += 40;
-      else if (rank < 200) score += 20;
-      else score += 5;
+    // If the state-scoped colleges don't offer the requested course at all,
+    // widen to every college so the branch preference still gets honoured.
+    if (state && wantedTokens.length > 0 && !scored.some(s => s.courseRatio > 0)) {
+      colleges = await College.find({});
+      scored = colleges.map(college => scoreCollege(college, prefs));
+    }
 
-      // 2. Average placement package scoring (Extract LPA numbers)
-      const avgPkgStr = college.placements?.averagePackage || '';
-      const pkgMatch = avgPkgStr.match(/([\d.]+)\s*LPA/i);
-      if (pkgMatch) {
-        const pkgVal = parseFloat(pkgMatch[1]);
-        if (pkgVal > 15) score += 50;
-        else if (pkgVal > 10) score += 40;
-        else if (pkgVal > 6) score += 25;
-        else score += 10;
-      }
+    // Keep only course-relevant matches when we have them, otherwise rank
+    // everything (always non-empty when the database has colleges).
+    const courseMatches = scored.filter(s => s.courseRatio > 0);
+    const pool = courseMatches.length > 0 ? courseMatches : scored;
 
-      // 3. Tuition Fee budget scoring
-      if (budget) {
-        const tuitionStr = college.fees?.tuition || '';
-        // Convert tuition str like "3.5 Lakh" or "250000" to number
-        let tuitionVal = 0;
-        const lakhMatch = tuitionStr.match(/([\d.]+)\s*Lakh/i);
-        if (lakhMatch) {
-          tuitionVal = parseFloat(lakhMatch[1]) * 100000;
-        } else {
-          const numMatch = tuitionStr.replace(/,/g, '').match(/\d+/);
-          if (numMatch) tuitionVal = parseInt(numMatch[0], 10);
-        }
+    pool.sort((a, b) => b.score - a.score || collegeRank(a.college) - collegeRank(b.college));
 
-        // Convert budget filter to number
-        let budgetVal = 0;
-        const budgetLakhMatch = budget.match(/([\d.]+)\s*Lakh/i);
-        if (budgetLakhMatch) {
-          budgetVal = parseFloat(budgetLakhMatch[1]) * 100000;
-        } else {
-          const budgetNum = budget.replace(/,/g, '').match(/\d+/);
-          if (budgetNum) budgetVal = parseInt(budgetNum[0], 10);
-        }
-
-        if (tuitionVal > 0 && budgetVal > 0) {
-          if (tuitionVal <= budgetVal) {
-            score += 30; // Fits within budget
-          } else if (tuitionVal <= budgetVal * 1.25) {
-            score += 15; // Slightly over budget
-          }
-        }
-      }
-
-      // 4. Preferred City scoring
-      if (preferredCity && college.location?.city?.toLowerCase() === preferredCity.toLowerCase()) {
-        score += 25;
-      }
-
-      return { college, score };
-    });
-
-    // Sort by descending score
-    scoredColleges.sort((a, b) => b.score - a.score);
-
-    return res.json(scoredColleges.slice(0, 10).map(sc => ({
+    return res.json(pool.slice(0, 10).map(sc => ({
       ...sc.college.toObject(),
       recommendationScore: sc.score
     })));

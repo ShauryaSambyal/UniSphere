@@ -12,12 +12,16 @@ import chatRoutes from './routes/chatRoutes.js';
 import embeddingRoutes from './routes/embeddingRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import summaryRoutes from './routes/summaryRoutes.js';
+import { warmUpEmbeddingPipeline } from './services/chromaService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+// `Number(...) || 5000` also guards against an inherited PORT=0 or a malformed
+// value, which would otherwise make the API listen on a random port while the
+// client proxy keeps pointing at 5000.
+const PORT = Number(process.env.PORT) || 5000;
 
 // ────────────────────────────────────────────────────────────
 // CORS – allow localhost in dev + all URLs listed in CLIENT_URL
@@ -97,6 +101,9 @@ mongoose.connect(MONGODB_URI)
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`🌍 Allowed CORS origins: ${allowedOrigins.join(', ')}`);
+      // Load the embedding model in the background when ChromaDB is up, so the
+      // first chat query never has to wait on the one-time model download.
+      warmUpEmbeddingPipeline().catch(() => {});
     });
   })
   .catch(err => {

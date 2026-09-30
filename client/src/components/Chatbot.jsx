@@ -49,7 +49,15 @@ export default function Chatbot() {
         body: JSON.stringify({ message: userMessage })
       });
 
-      if (!res.ok || !res.body) throw new Error('Network response was not ok');
+      if (!res.ok) {
+        // A gateway status from the dev proxy almost always means the API
+        // process is not running; say so instead of leaking a bare HTTP code.
+        throw new Error([502, 503, 504].includes(res.status)
+          ? 'The assistant API is not reachable. Start the backend with "npm run server" (or "npm run dev" from the project root), then try again.'
+          : `The assistant responded with status ${res.status}. Please try again.`);
+      }
+
+      if (!res.body) throw new Error('The server returned no response stream. Please try again.');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -86,9 +94,12 @@ export default function Chatbot() {
       }
     } catch (error) {
       console.error('Chat error:', error);
+      const failureMessage = error instanceof TypeError
+        ? 'Could not reach the AI backend. Start the server with "npm run server" (or "npm run dev" from the project root), then try again.'
+        : error.message || 'There was an error communicating with the AI. Please try again later.';
       setMessages(prev => prev.map((msg, idx) =>
         idx === assistantIndex
-          ? { ...msg, content: 'There was an error communicating with the AI. Please try again later.' }
+          ? { ...msg, content: failureMessage }
           : msg
       ));
     } finally {

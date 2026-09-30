@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
 import { Check, X, Search, Plus, Loader2 } from 'lucide-react';
@@ -6,21 +7,50 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { fadeUp } from '../lib/motion';
 
 export default function Compare() {
+  const [searchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [selectedColleges, setSelectedColleges] = useState([]);
+  const [searchError, setSearchError] = useState('');
+
+  // Home's "Compare now" button links here with ?a=<id>&b=<id>: preload those
+  // colleges so the comparison is ready immediately instead of empty.
+  useEffect(() => {
+    const ids = ['a', 'b']
+      .map((key) => searchParams.get(key))
+      .filter(Boolean);
+
+    if (ids.length === 0) return undefined;
+
+    let cancelled = false;
+    api.get(`/colleges/batch?ids=${ids.join(',')}`)
+      .then(({ data }) => {
+        if (!cancelled) setSelectedColleges(data.slice(0, 3));
+      })
+      .catch((err) => {
+        console.error('Failed to preload comparison colleges:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchResults = async () => {
       if (query.trim().length < 2) {
         setSearchResults([]);
+        setSearchError('');
         return;
       }
       try {
         const { data } = await api.get(`/colleges/search?q=${encodeURIComponent(query)}&limit=5`);
         setSearchResults(data);
+        setSearchError('');
       } catch (err) {
         console.error(err);
+        setSearchResults([]);
+        setSearchError('Could not search colleges. Make sure the backend server is running.');
       }
     };
     const debounce = setTimeout(fetchResults, 300);
@@ -88,6 +118,9 @@ export default function Compare() {
                 </li>
               ))}
             </ul>
+          )}
+          {searchError && (
+            <p className="mt-3 text-xs font-normal text-red-500">{searchError}</p>
           )}
         </div>
 

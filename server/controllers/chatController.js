@@ -22,35 +22,20 @@ export async function askAssistant(req, res) {
     const relevantColleges = await searchVectorDb(message, 5);
     console.log(`Found ${relevantColleges.length} relevant colleges for context.`);
 
-    // Lazy-load nearby places ONLY for the top matched college to avoid rate-limiting
+    // Enrich nearby places for the top match in the background. Never await
+    // this before streaming: generating places can call Gemini and would add
+    // seconds of dead air before the first token.
     if (relevantColleges.length > 0) {
       const topCollege = relevantColleges[0];
       if (!topCollege.nearbyPlaces || topCollege.nearbyPlaces.length === 0) {
-        try {
-          const allNearby = await getNearbyPlacesForAllTypes(topCollege);
-          if (allNearby.length > 0) {
-            const savedPlaces = await NearbyPlace.insertMany(
-              allNearby.map(place => ({
-                ...place,
-                collegeId: topCollege._id
-              }))
-            );
-            topCollege.nearbyPlaces = savedPlaces;
-            
-            // Save references back to the College document
-            await College.findByIdAndUpdate(topCollege._id, {
-              nearbyPlaces: savedPlaces.map(p => p._id)
-            });
-          }
-        } catch (saveErr) {
-          console.error(`Failed to batch lazy-load places for ${topCollege.name}:`, saveErr.message);
-        }
+        loadNearbyPlacesInBackground(topCollege);
       }
     }
 
     // 2. Set headers for SSE / Streaming
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Transfer-Encoding', 'chunked');
+    res.flushHeaders?.();
 
     // 3. Format sources metadata and write first chunk as expected by Chat.jsx
     const sources = relevantColleges.map(c => ({
@@ -76,6 +61,31 @@ export async function askAssistant(req, res) {
     } else {
       res.end();
     }
+  }
+}
+
+/**
+ * Fetches and stores nearby places for a college without blocking the chat
+ * stream. Failures are logged and otherwise ignored.
+ */
+async function loadNearbyPlacesInBackground(college) {
+  try {
+    const allNearby = await getNearbyPlacesForAllTypes(college);
+    if (allNearby.length === 0) return;
+
+    const savedPlaces = await NearbyPlace.insertMany(
+      allNearby.map(place => ({
+        ...place,
+        collegeId: college._id
+      }))
+    );
+
+    // Save references back to the College document
+    await College.findByIdAndUpdate(college._id, {
+      nearbyPlaces: savedPlaces.map(p => p._id)
+    });
+  } catch (err) {
+    console.error(`Failed to batch lazy-load places for ${college.name}:`, err.message);
   }
 }
 

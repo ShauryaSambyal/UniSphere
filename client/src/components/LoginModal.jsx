@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
+import { X, Mail, Lock, User as UserIcon, ArrowRight, Globe } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Dropdown from './Dropdown';
 
 export default function LoginModal({ isOpen, onClose }) {
-  const { login, register } = useAuth();
+  const { login, register, loginWithGoogle, isFirebaseConfigured } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +28,20 @@ export default function LoginModal({ isOpen, onClose }) {
       onClose();
     } catch (err) {
       setError(err || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      await loginWithGoogle();
+      onClose();
+    } catch (err) {
+      setError(err || 'Google sign-in failed');
     } finally {
       setLoading(false);
     }
@@ -163,6 +177,26 @@ export default function LoginModal({ isOpen, onClose }) {
                 {loading ? 'Processing…' : isRegister ? 'Create account' : 'Sign in'}
                 {!loading && <ArrowRight size={14} />}
               </button>
+
+              {isFirebaseConfigured && (
+                <>
+                  <div className="flex items-center gap-3 py-1">
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-faint">or</span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogle}
+                    disabled={loading}
+                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-card py-2.5 text-sm font-medium text-foreground transition-colors duration-150 hover:border-line-strong active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <Globe size={15} />
+                    Continue with Google
+                  </button>
+                </>
+              )}
             </form>
 
             {/* Toggle Action */}

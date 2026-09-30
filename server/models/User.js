@@ -16,7 +16,13 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true
+    // Optional: accounts created through Firebase never set a local password.
+    required: false
+  },
+  firebaseUid: {
+    type: String,
+    index: true,
+    sparse: true
   },
   role: {
     type: String,
@@ -43,6 +49,7 @@ userSchema.pre('save', async function (next) {
 
 // Instance method to compare password
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false; // Firebase-only accounts have no local password
   return bcrypt.compare(candidatePassword, this.password);
 };
 

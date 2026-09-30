@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Award, Sparkles, ArrowRight, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import Dropdown from './Dropdown';
+import useCollegeFilters from '../lib/useCollegeFilters';
+import { prettyLabel } from '../lib/format';
 import { EASE, fadeUp, dropdownVariants, dropdownItem } from '../lib/motion';
 
 /* `mark: true` paints the word with the mint highlighter swash. */
@@ -74,9 +76,8 @@ export default function Hero() {
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
 
-  const states = ['Karnataka', 'Maharashtra'];
-  const cities = ['Bangalore', 'Mumbai'];
-  const courses = ['Computer Science Engineering', 'Electronics & Communication Engineering', 'Bachelor of Business Administration'];
+  // Every state / city / course present in the database (with an offline fallback).
+  const { states, cities, courses } = useCollegeFilters();
 
   // Handle outside clicks to close the autocomplete dropdown
   useEffect(() => {
@@ -295,7 +296,7 @@ export default function Hero() {
             <Dropdown
               value={selectedState}
               onChange={setSelectedState}
-              options={states}
+              options={states.map((value) => ({ value, label: value }))}
               placeholder="Any state"
               triggerClassName={PILL_TRIGGER}
             />
@@ -304,7 +305,7 @@ export default function Hero() {
             <Dropdown
               value={selectedCity}
               onChange={setSelectedCity}
-              options={cities}
+              options={cities.map((value) => ({ value, label: prettyLabel(value) }))}
               placeholder="Any city"
               triggerClassName={PILL_TRIGGER}
             />
@@ -313,7 +314,7 @@ export default function Hero() {
             <Dropdown
               value={selectedCourse}
               onChange={setSelectedCourse}
-              options={courses}
+              options={courses.map((value) => ({ value, label: value }))}
               placeholder="Any course"
               triggerClassName={PILL_TRIGGER}
             />

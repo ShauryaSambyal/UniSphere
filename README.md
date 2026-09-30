@@ -94,11 +94,38 @@ ALGOLIA_INDEX_NAME=colleges
 # Vector Database (ChromaDB) Configuration
 CHROMADB_HOST=http://localhost:8000
 
+# Firebase Authentication — verifies Firebase ID tokens sent by the client.
+# Must match the client's VITE_FIREBASE_PROJECT_ID.
+FIREBASE_PROJECT_ID=your-firebase-project-id
+
 # Optional alternative chat provider
 LLAMA_API_KEY=your-llama-api-key
 ```
 
-*Note: Built-in automated fallbacks (mock data + MongoDB search) are in place if Algolia, ChromaDB, Gemini, or Google Places keys are not configured or offline, enabling immediate out-of-the-box local testing.*
+The frontend reads its own Firebase Web SDK keys from `client/.env` (these are public by design and safe to ship to the browser):
+
+```env
+VITE_FIREBASE_API_KEY=your-web-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-firebase-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+VITE_FIREBASE_APP_ID=your-app-id
+```
+
+*Note: Built-in automated fallbacks (mock data + MongoDB search) are in place if Algolia, ChromaDB, Gemini, Google Places, or Firebase keys are not configured or offline, enabling immediate out-of-the-box local testing.*
+
+### Enabling Firebase Authentication
+
+The login modal switches to the Firebase Web SDK as soon as the six `VITE_FIREBASE_*` values above are present. Until then it keeps using the built-in email/password flow, so the app works with or without Firebase keys.
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. **Authentication → Sign-in method**: enable **Email/Password** and (optionally) **Google**.
+3. **Project settings → Your apps**: register a Web app and copy its config into `client/.env`.
+4. Put the same project ID in `server/.env` as `FIREBASE_PROJECT_ID`.
+5. For Google sign-in, add your dev origin under **Authentication → Settings → Authorized domains**.
+
+Successful Firebase sign-ins are mirrored into MongoDB (the `User` document gains a `firebaseUid`) and exchanged for the app's JWT via `POST /api/auth/firebase`, so protected/admin routes and existing accounts (including the seeded demo users) keep working. Firebase ID tokens are verified server-side against Google's rotating public certificates — no service-account key required.
 
 ---
 
@@ -109,7 +136,7 @@ LLAMA_API_KEY=your-llama-api-key
 - **Node.js 20.19 or newer** (built and tested here on Node 24).
 - **MongoDB** running locally, or a MongoDB Atlas connection string in `MONGODB_URI`.
 
-No C++ toolchain or Visual Studio build tools are required: the only native dependencies (`sharp`, `onnxruntime-node`) ship prebuilt binaries for Windows, macOS, and Linux. The first embedding request downloads the quantized `Xenova/bge-large-en-v1.5` ONNX model (roughly 330 MB) into the local Transformers.js cache; later runs reuse it. Until the model is cached, `chromaService` transparently falls back to deterministic local vectors.
+No C++ toolchain or Visual Studio build tools are required: the only native dependencies (`sharp`, `onnxruntime-node`) ship prebuilt binaries for Windows, macOS, and Linux. The first embedding request downloads the quantized `Xenova/bge-large-en-v1.5` ONNX model (roughly 330 MB) into the local Transformers.js cache; later runs reuse it. That load starts in the background at boot (only when ChromaDB is reachable) and is time-boxed, so a cold cache never hangs a chat request — until the model is ready, `chromaService` falls back to MongoDB keyword search.
 
 ### 1. Install Dependencies
 

@@ -4,18 +4,20 @@ import { Send, BookOpen, Trash2, Bot, User, Loader2, CornerDownLeft } from 'luci
 import { API_BASE } from '../services/api';
 import { EASE } from '../lib/motion';
 
+const CONTENT_MARKER = '\n[CONTENT_START]\n';
+const STREAM_TIMEOUT_MS = 60000;
+
+const WELCOME_MESSAGE = {
+  id: 'welcome',
+  role: 'assistant',
+  content: 'Hello! I am your AI College Assistant. I can help you search fees, compare placements, and look up details on RVCE, BMSCE, Christ, IIIT Bangalore, and IIT Bombay. Ask me anything!',
+  sources: []
+};
+
 export default function Chat() {
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem('chat_history');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: 'Hello! I am your AI College Assistant. I can help you search fees, compare placements, and look up details on RVCE, BMSCE, Christ, IIIT Bangalore, and IIT Bombay. Ask me anything!',
-        sources: []
-      }
-    ];
-  });
+  // Chats are session-only on purpose: every refresh starts a brand new
+  // conversation, so no history is persisted anywhere.
+  const [messages, setMessages] = useState(() => [{ ...WELCOME_MESSAGE }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -28,9 +30,12 @@ export default function Chat() {
     'Which college has better placements?'
   ];
 
-  // Save history
+  // Purge history saved by older builds, then keep the view pinned to the latest message.
   useEffect(() => {
-    localStorage.setItem('chat_history', JSON.stringify(messages));
+    localStorage.removeItem('chat_history');
+  }, []);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
@@ -67,94 +72,115 @@ export default function Chat() {
 
   const handleSend = async (textToSend) => {
     const text = (textToSend || input).trim();
-    if (!text) return;
+    if (!text || loading) return;
 
     setInput('');
     setLoading(true);
 
-    const userMsg = { id: Date.now().toString(), role: 'user', content: text };
-    setMessages(prev => [...prev, userMsg]);
+    const userMsg = { id: `${Date.now()}-user`, role: 'user', content: text };
+    const assistantMsgId = `${Date.now()}-assistant`;
+    setMessages(prev => [...prev, userMsg, { id: assistantMsgId, role: 'assistant', content: '', sources: [] }]);
 
-    const assistantMsgId = (Date.now() + 1).toString();
-    // Add placeholder assistant response
-    setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '', sources: [] }]);
+    const patchAssistant = (patch) =>
+      setMessages(prev => prev.map(m => (m.id === assistantMsgId ? { ...m, ...patch } : m)));
+
+    // Abort the request if the server goes silent, so the typing indicator can
+    // never spin forever the way it did when the backend was unreachable.
+    const controller = new AbortController();
+    let watchdog = null;
+    let content = '';
+
+    const armWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+    };
+    armWatchdog();
 
     try {
       const response = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({ message: text }),
+        signal: controller.signal
       });
 
+      if (!response.ok) {
+        let detail = '';
+        try {
+          detail = (await response.json())?.message || '';
+        } catch {
+          // Response was not JSON — the status code is all we have.
+        }
+
+        // A gateway status from the dev proxy almost always means the API
+        // process is not running; say so instead of leaking a bare HTTP code.
+        if (!detail && [502, 503, 504].includes(response.status)) {
+          detail = 'The assistant API is not reachable. Start the backend with "npm run server" (or "npm run dev" from the project root), then try again.';
+        }
+
+        throw new Error(detail || `The server responded with status ${response.status}`);
+      }
+
       if (!response.body) {
-        throw new Error('No response body stream available');
+        throw new Error('The server returned no response stream');
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let done = false;
       let buffer = '';
       let parsedSources = [];
       let contentStarted = false;
 
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        buffer += decoder.decode(value, { stream: !done });
+      for (;;) {
+        const { value, done } = await reader.read();
+        armWatchdog();
 
-        // Check if content marker is found
-        if (!contentStarted && buffer.includes('\n[CONTENT_START]\n')) {
-          const parts = buffer.split('\n[CONTENT_START]\n');
-          const metaStr = parts[0];
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
 
-          try {
-            const parsedMeta = JSON.parse(metaStr);
-            parsedSources = parsedMeta.sources || [];
-          } catch (e) {
-            console.error('Failed to parse sources metadata', e);
+        if (!contentStarted) {
+          const markerIndex = buffer.indexOf(CONTENT_MARKER);
+          if (markerIndex === -1) {
+            if (!done) continue; // metadata header not fully received yet
+            content = buffer;
+            contentStarted = true;
+          } else {
+            try {
+              parsedSources = JSON.parse(buffer.slice(0, markerIndex)).sources || [];
+            } catch {
+              parsedSources = [];
+            }
+            buffer = buffer.slice(markerIndex + CONTENT_MARKER.length);
+            contentStarted = true;
           }
-
-          contentStarted = true;
-          // Set streaming output to start with everything after CONTENT_START
-          const contentText = parts.slice(1).join('\n[CONTENT_START]\n');
-
-          setMessages(prev => prev.map(m =>
-            m.id === assistantMsgId
-              ? { ...m, content: contentText, sources: parsedSources }
-              : m
-          ));
-          buffer = contentText;
-        } else if (contentStarted) {
-          // Streaming text chunks
-          setMessages(prev => prev.map(m =>
-            m.id === assistantMsgId
-              ? { ...m, content: buffer }
-              : m
-          ));
         }
+
+        content = buffer;
+        patchAssistant({ content, sources: parsedSources });
+
+        if (done) break;
+      }
+
+      if (!content.trim()) {
+        patchAssistant({ content: 'The assistant returned an empty response. Please try again.' });
       }
     } catch (error) {
       console.error('Streaming failure:', error);
-      setMessages(prev => prev.map(m =>
-        m.id === assistantMsgId
-          ? { ...m, content: 'Error: Failed to fetch reply from assistant. Make sure the backend server is running.' }
-          : m
-      ));
+      const failureMessage = error.name === 'AbortError'
+        ? 'The assistant took too long to respond. The backend may be offline or busy — please try again.'
+        : error instanceof TypeError
+          ? 'Could not reach the AI backend. Start the server with "npm run server" (or "npm run dev" from the project root), then try again.'
+          : `Error: ${error.message || 'Failed to fetch a reply from the assistant.'}`;
+      // Keep any text that already streamed in; otherwise show the error itself.
+      patchAssistant({ content: content.trim() ? `${content}\n\n— ${failureMessage}` : failureMessage });
     } finally {
+      clearTimeout(watchdog);
       setLoading(false);
     }
   };
 
   const clearHistory = () => {
     if (window.confirm('Clear all chat messages?')) {
-      setMessages([
-        {
-          id: 'welcome',
-          role: 'assistant',
-          content: 'Hello! I am your AI College Assistant. I can help you search fees, compare placements, and look up details on RVCE, BMSCE, Christ, IIIT Bangalore, and IIT Bombay. Ask me anything!',
-          sources: []
-        }
-      ]);
+      setMessages([{ ...WELCOME_MESSAGE }]);
     }
   };
 

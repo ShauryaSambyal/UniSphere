@@ -2,6 +2,8 @@ import express from 'express';
 import {
   getAllColleges,
   searchAutocomplete,
+  getFilterOptions,
+  getCollegesByIds,
   getCollegeById,
   createCollege,
   updateCollege,
@@ -20,6 +22,8 @@ const router = express.Router();
 // route, otherwise Express will treat "search" and "stats" as an :id value.
 router.get('/', getAllColleges);
 router.get('/search', searchAutocomplete);           // SearchBar.jsx, Compare.jsx
+router.get('/filters', getFilterOptions);            // Hero.jsx, Recommendations.jsx dropdowns
+router.get('/batch', getCollegesByIds);              // Compare.jsx (?a= & ?b= preload)
 router.get('/stats', getDashboardStats);             // Admin.jsx
 router.get('/:id', getCollegeById);                  // CollegeDetails.jsx
 
