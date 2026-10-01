@@ -42,7 +42,9 @@ export async function askAssistant(req, res) {
       _id: c._id.toString(),
       name: c.name,
       shortName: c.shortName || '',
-      city: c.location?.city || 'Bangalore'
+      // Imported rows do not always carry a city; fall back to the state
+      // rather than labelling every unlocated college as Bangalore.
+      city: c.location?.city || c.location?.state || 'India'
     }));
 
     res.write(JSON.stringify({ sources }) + '\n[CONTENT_START]\n');
