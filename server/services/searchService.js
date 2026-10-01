@@ -120,6 +120,22 @@ export async function syncAllCollegesToSearch(colleges) {
 }
 
 /**
+ * Removes every record from the index. Used before a full re-seed so stale
+ * objects (whose MongoDB documents no longer exist) cannot shadow real results.
+ */
+export async function clearSearchIndex() {
+  if (!writeClient) return false;
+  try {
+    await writeClient.clearObjects({ indexName: INDEX_NAME });
+    console.log('Cleared the Algolia search index.');
+    return true;
+  } catch (error) {
+    console.warn('Algolia index clear failed:', error.message);
+    return false;
+  }
+}
+
+/**
  * Delete college from Algolia.
  */
 export async function deleteCollegeFromSearch(collegeId) {
@@ -165,12 +181,17 @@ export async function searchColleges(queryText, limit = 10) {
         const ids = hits.map(h => h.objectID);
         const colleges = await College.find({ _id: { $in: ids } });
 
-        // Retain search rankings order
-        const orderMap = {};
-        ids.forEach((id, idx) => {
-          orderMap[id] = idx;
-        });
-        return colleges.sort((a, b) => orderMap[a._id.toString()] - orderMap[b._id.toString()]);
+        // Stale index entries point at documents that no longer exist; when
+        // that happens, fall through to the MongoDB search instead of
+        // returning an empty list.
+        if (colleges.length > 0) {
+          // Retain search rankings order
+          const orderMap = {};
+          ids.forEach((id, idx) => {
+            orderMap[id] = idx;
+          });
+          return colleges.sort((a, b) => orderMap[a._id.toString()] - orderMap[b._id.toString()]);
+        }
       }
     } catch (error) {
       console.warn('Algolia search failed, using MongoDB fallback:', error.message);

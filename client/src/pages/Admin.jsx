@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, Plus, Edit, Trash2, Sparkles, Database, Layers, BookOpen, Users, Check, X } from 'lucide-react';
+import { ShieldAlert, Plus, Edit, Trash2, Sparkles, Database, Layers, BookOpen, Users, Check, X, RefreshCw } from 'lucide-react';
 import api from '../services/api';
+import { locationLabel, rankLabel, timeAgo } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 
 const inputClass =
@@ -37,6 +38,8 @@ export default function Admin() {
   const [uiError, setUiError] = useState('');
   const [uiSuccess, setUiSuccess] = useState('');
   const [syncingVectors, setSyncingVectors] = useState(false);
+  const [dataset, setDataset] = useState(null);
+  const [refreshingData, setRefreshingData] = useState(false);
 
   // Fetch admin dashboard info
   const loadDashboardData = async () => {
@@ -51,11 +54,38 @@ export default function Admin() {
     }
   };
 
+  // Which open datasets the directory was built from, and when they last synced.
+  const loadDatasetInfo = async () => {
+    try {
+      const res = await api.get('/colleges/dataset');
+      setDataset(res.data);
+    } catch (err) {
+      console.error('Failed to load dataset info:', err);
+    }
+  };
+
+  // Re-downloads the public datasets and upserts them (never wipes).
+  const handleRefreshData = async () => {
+    setRefreshingData(true);
+    setUiSuccess('');
+    setUiError('');
+    try {
+      const res = await api.post('/colleges/refresh');
+      setUiSuccess(`${res.data.message} Directory now holds ${res.data.total} colleges.`);
+      await Promise.all([loadDatasetInfo(), loadDashboardData()]);
+    } catch (err) {
+      setUiError(err.response?.data?.message || 'Could not refresh from the open datasets.');
+    } finally {
+      setRefreshingData(false);
+    }
+  };
+
   useEffect(() => {
     let timeout;
     if (isAdmin) {
       timeout = setTimeout(() => {
         loadDashboardData();
+        loadDatasetInfo();
       }, 0);
     }
     return () => clearTimeout(timeout);
@@ -237,6 +267,48 @@ export default function Admin() {
         ))}
       </div>
 
+      {/* Open-data provenance */}
+      <div className="rounded-2xl border border-line bg-card p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-[11px] font-medium uppercase tracking-wider text-faint">Open data source</h3>
+            <p className="mt-1.5 text-sm font-normal text-muted">
+              {dataset
+                ? `${dataset.total.toLocaleString()} colleges in the directory · ${dataset.curated} curated profiles · last refresh ${timeAgo(dataset.lastSyncedAt) || 'not recorded'}`
+                : 'Loading dataset information…'}
+            </p>
+          </div>
+          <button
+            onClick={handleRefreshData}
+            disabled={refreshingData}
+            className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line px-4 py-2.5 text-xs font-medium text-muted transition-colors duration-150 hover:border-line-strong hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={refreshingData ? 'animate-spin' : ''} />
+            {refreshingData ? 'Re-downloading…' : 'Refresh open data'}
+          </button>
+        </div>
+
+        {dataset?.sources?.length > 0 && (
+          <ul className="mt-4 space-y-2.5 border-t border-line pt-4">
+            {dataset.sources.map((source) => (
+              <li key={source.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-normal text-muted underline decoration-line-strong underline-offset-4 transition-colors duration-150 hover:text-foreground"
+                >
+                  {source.label}
+                </a>
+                <span className="font-mono text-[11px] text-faint">
+                  {source.count.toLocaleString()} records · {source.license}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* Colleges Management List */}
       <div className="overflow-hidden rounded-2xl border border-line bg-card">
         <div className="border-b border-line p-4">
@@ -258,9 +330,9 @@ export default function Admin() {
                 <tr key={college._id} className="transition-colors duration-150 hover:bg-subtle">
                   <td className="p-4">
                     <div className="font-medium text-foreground">{college.name}</div>
-                    <div className="mt-0.5 font-normal text-faint">{college.location.city}, {college.location.state}</div>
+                    <div className="mt-0.5 font-normal text-faint">{locationLabel(college.location)}</div>
                   </td>
-                  <td className="p-4 font-mono text-foreground">#{college.nirfRanking}</td>
+                  <td className="p-4 font-mono text-foreground">{rankLabel(college.nirfRanking)}</td>
                   <td className="p-4 font-mono text-muted">{college.placements?.averagePackage}</td>
                   <td className="p-4">
                     {college.aiSummary ? (

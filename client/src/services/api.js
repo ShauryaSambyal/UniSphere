@@ -7,7 +7,8 @@ import axios from 'axios';
  *
  * Export this for use in raw fetch() calls (e.g. streaming endpoints).
  */
-export const API_BASE = import.meta.env.VITE_API_URL || '';
+// Trailing slashes are stripped so `${API_BASE}/api/...` never becomes `//api/...`.
+export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 /**
  * Axios instance pre-configured with the backend base URL and JWT auth header.

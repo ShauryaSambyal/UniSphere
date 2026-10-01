@@ -5,16 +5,17 @@ import {
   firebaseErrorMessage,
   isFirebaseConfigured,
   onAuthStateChanged,
-  signInWithEmail,
   signInWithGoogle as firebaseSignInWithGoogle,
-  signOutFirebase,
-  signUpWithEmail
+  signOutFirebase
 } from '../services/firebase';
 
 const AuthContext = createContext();
 
 const SYNC_FALLBACK_MESSAGE =
-  'Signed in with Firebase, but the backend could not verify the session. Check FIREBASE_PROJECT_ID in server/.env.';
+  'Signed in with Google, but the backend could not verify the session. Check FIREBASE_PROJECT_ID in server/.env.';
+
+const NOT_CONFIGURED_MESSAGE =
+  'Google sign-in is not configured yet. Add the VITE_FIREBASE_* keys to client/.env, then restart the dev server.';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -24,14 +25,10 @@ export function AuthProvider({ children }) {
    * Exchanges a Firebase ID token for the app's own JWT (plus the database
    * user record with its role), so every protected API keeps working.
    */
-  const syncWithBackend = async (firebaseUser, profile = {}) => {
+  const syncWithBackend = async (firebaseUser) => {
     try {
       const idToken = await firebaseUser.getIdToken();
-      const response = await api.post('/auth/firebase', {
-        idToken,
-        name: profile.name || firebaseUser.displayName || '',
-        role: profile.role
-      });
+      const response = await api.post('/auth/firebase', { idToken });
 
       const { token, user: syncedUser } = response.data;
       localStorage.setItem('token', token);
@@ -43,8 +40,8 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Restore the session on load: JWT first, then bridge a still-active Firebase
-  // session that does not have a backend token yet.
+  // Restore the session on load: the app JWT first, then bridge a still-active
+  // Firebase session that does not have a backend token yet.
   useEffect(() => {
     let unsubscribe = () => {};
 
@@ -79,80 +76,14 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  const legacyLogin = async (email, password) => {
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      const { token, user: loggedUser } = response.data;
-      localStorage.setItem('token', token);
-      setUser(loggedUser);
-      return loggedUser;
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error.response?.data?.message || 'Login failed';
-    }
-  };
-
-  const legacyRegister = async (name, email, password, role) => {
-    try {
-      const response = await api.post('/auth/register', { name, email, password, role });
-      const { token, user: registeredUser } = response.data;
-      localStorage.setItem('token', token);
-      setUser(registeredUser);
-      return registeredUser;
-    } catch (error) {
-      console.error('Registration failed:', error);
-      throw error.response?.data?.message || 'Registration failed';
-    }
-  };
-
   /**
-   * Firebase email/password sign-in when configured. Accounts that only exist
-   * in the local database (e.g. the seeded demo users) still work through the
-   * built-in endpoint, so enabling Firebase never locks anyone out.
+   * Google is the only sign-in method. The Google identity is verified by
+   * Firebase in the browser and re-verified by the API before a session is
+   * issued, so the client never has to handle a password.
    */
-  const login = async (email, password) => {
-    setLoading(true);
-    try {
-      if (isFirebaseConfigured && auth) {
-        let firebaseUser;
-        try {
-          firebaseUser = await signInWithEmail(email, password);
-        } catch (firebaseError) {
-          try {
-            return await legacyLogin(email, password);
-          } catch {
-            throw firebaseErrorMessage(firebaseError);
-          }
-        }
-        return await syncWithBackend(firebaseUser);
-      }
-
-      return await legacyLogin(email, password);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (name, email, password, role = 'student') => {
-    setLoading(true);
-    try {
-      if (isFirebaseConfigured && auth) {
-        const firebaseUser = await signUpWithEmail(name, email, password);
-        return await syncWithBackend(firebaseUser, { name, role });
-      }
-
-      return await legacyRegister(name, email, password, role);
-    } catch (error) {
-      if (error?.code) throw firebaseErrorMessage(error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loginWithGoogle = async () => {
     if (!isFirebaseConfigured || !auth) {
-      throw 'Google sign-in becomes available once the VITE_FIREBASE_* keys are added to client/.env.';
+      throw NOT_CONFIGURED_MESSAGE;
     }
 
     setLoading(true);
@@ -161,6 +92,13 @@ export function AuthProvider({ children }) {
       return await syncWithBackend(firebaseUser);
     } catch (error) {
       console.error('Google sign-in failed:', error);
+
+      // Keep Firebase and the app in sync: if the backend rejected the token,
+      // drop the half-open Firebase session instead of leaving it dangling.
+      if (!error?.code) {
+        signOutFirebase().catch(() => {});
+      }
+
       if (error?.code) throw firebaseErrorMessage(error);
       throw error;
     } finally {
@@ -183,8 +121,6 @@ export function AuthProvider({ children }) {
     isAdmin: user?.role === 'admin',
     loading,
     isFirebaseConfigured,
-    login,
-    register,
     loginWithGoogle,
     logout
   };

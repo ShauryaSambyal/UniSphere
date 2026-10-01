@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
+import { locationLabel, rankLabel } from '../lib/format';
 import { Check, X, Search, Plus, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { fadeUp } from '../lib/motion';
@@ -168,7 +169,7 @@ export default function Compare() {
                 <tbody className="divide-y divide-line text-sm">
                   <tr>
                     <td className="p-4 font-normal text-muted">NIRF ranking</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-mono text-xs text-foreground">{c.ranking?.nirf || c.nirfRanking || 'N/A'}</td>)}
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-mono text-xs text-foreground">{rankLabel(c.ranking?.nirf || c.nirfRanking)}</td>)}
                   </tr>
                   <tr>
                     <td className="p-4 font-normal text-muted">Institute type</td>
@@ -180,7 +181,7 @@ export default function Compare() {
                   </tr>
                   <tr>
                     <td className="p-4 font-normal text-muted">Location</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-normal text-foreground">{c.location?.city}, {c.location?.state}</td>)}
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-normal text-foreground">{locationLabel(c.location)}</td>)}
                   </tr>
                   <tr>
                     <td className="p-4 font-normal text-muted">Tuition fee</td>
@@ -194,7 +195,7 @@ export default function Compare() {
                     <td className="p-4 font-normal text-muted">Hostel available</td>
                     {selectedColleges.map(c => (
                       <td key={c._id} className="p-4">
-                        {c.hostel?.available !== false
+                        {(c.hostel?.boysHostel || c.hostel?.girlsHostel || c.hostelAvailable)
                           ? <Check size={16} className="text-foreground" />
                           : <X size={16} className="text-faint" />}
                       </td>

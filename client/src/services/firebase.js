@@ -1,19 +1,16 @@
 import { getApps, initializeApp } from 'firebase/app';
 import {
-  createUserWithEmailAndPassword,
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
   signInWithPopup,
-  signOut,
-  updateProfile
+  signOut
 } from 'firebase/auth';
 
 /**
  * Firebase configuration comes from client/.env (VITE_FIREBASE_*).
- * When the keys are missing, the app keeps working with the built-in JWT
- * auth instead of crashing on import.
+ * When the keys are missing, the app does not crash on import — it simply
+ * reports that Google sign-in is unavailable.
  */
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -63,10 +60,8 @@ export function firebaseErrorMessage(error) {
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
       return 'Invalid email or password.';
-    case 'auth/email-already-in-use':
-      return 'An account already exists with this email.';
-    case 'auth/weak-password':
-      return 'Password should be at least 6 characters.';
+    case 'auth/account-exists-with-different-credential':
+      return 'That email is already linked to a different sign-in method.';
     case 'auth/popup-closed-by-user':
     case 'auth/cancelled-popup-request':
       return 'Google sign-in was cancelled.';
@@ -80,19 +75,6 @@ export function firebaseErrorMessage(error) {
     default:
       return error?.message || 'Authentication failed. Please try again.';
   }
-}
-
-export async function signInWithEmail(email, password) {
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  return credential.user;
-}
-
-export async function signUpWithEmail(name, email, password) {
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
-  if (name) {
-    await updateProfile(credential.user, { displayName: name });
-  }
-  return credential.user;
 }
 
 export async function signInWithGoogle() {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, BookOpen, Trash2, Bot, User, Loader2, CornerDownLeft } from 'lucide-react';
+import { Send, BookOpen, Bot, User, Loader2, CornerDownLeft } from 'lucide-react';
 import { API_BASE } from '../services/api';
 import { EASE } from '../lib/motion';
 
@@ -10,7 +10,7 @@ const STREAM_TIMEOUT_MS = 60000;
 const WELCOME_MESSAGE = {
   id: 'welcome',
   role: 'assistant',
-  content: 'Hello! I am your AI College Assistant. I can help you search fees, compare placements, and look up details on RVCE, BMSCE, Christ, IIIT Bangalore, and IIT Bombay. Ask me anything!',
+  content: 'Hello! I am your AI College Assistant. I answer from a live directory of institutions imported from open datasets — ask about fees, placements, locations, or which institutes exist in a state or city.',
   sources: []
 };
 
@@ -25,9 +25,9 @@ export default function Chat() {
   // Suggested Prompts
   const suggestedPrompts = [
     'Compare RVCE and BMSCE placements',
-    'What are the fees of Christ University?',
-    'Tell me about IIIT Bangalore',
-    'Which college has better placements?'
+    'Which universities are in Rajasthan?',
+    'Tell me about University of Hyderabad',
+    'Which colleges have the best placements?'
   ];
 
   // Purge history saved by older builds, then keep the view pinned to the latest message.
@@ -178,33 +178,19 @@ export default function Chat() {
     }
   };
 
-  const clearHistory = () => {
-    if (window.confirm('Clear all chat messages?')) {
-      setMessages([{ ...WELCOME_MESSAGE }]);
-    }
-  };
-
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
       {/* Top Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
+      <div className="flex shrink-0 items-center border-b border-line px-6 py-4">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground">
             <Bot size={14} className="text-background" />
           </span>
           <div>
             <h1 className="text-sm font-medium text-foreground">AI search chat</h1>
-            <p className="font-mono text-[10px] uppercase tracking-wider text-faint">RAG · ChromaDB + Gemini</p>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-faint">Grounded retrieval · Gemini</p>
           </div>
         </div>
-        <button
-          onClick={clearHistory}
-          aria-label="Clear chat history"
-          className="cursor-pointer rounded-lg border border-line p-2 text-faint transition-colors duration-150 hover:border-red-300 hover:text-red-500"
-          title="Clear chat history"
-        >
-          <Trash2 size={14} />
-        </button>
       </div>
 
       {/* Messages Scroll View */}

@@ -11,7 +11,9 @@ import {
   triggerAiSummary,
   importColleges,
   getRecommendations,
-  getDashboardStats
+  getDashboardStats,
+  getDatasetInfo,
+  refreshDataset
 } from '../controllers/collegeController.js';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
@@ -25,6 +27,7 @@ router.get('/search', searchAutocomplete);           // SearchBar.jsx, Compare.j
 router.get('/filters', getFilterOptions);            // Hero.jsx, Recommendations.jsx dropdowns
 router.get('/batch', getCollegesByIds);              // Compare.jsx (?a= & ?b= preload)
 router.get('/stats', getDashboardStats);             // Admin.jsx
+router.get('/dataset', getDatasetInfo);              // Home.jsx, Admin.jsx (provenance + freshness)
 router.get('/:id', getCollegeById);                  // CollegeDetails.jsx
 
 // ─── Public POST Routes ───────────────────────────────────────────────────────
@@ -37,5 +40,6 @@ router.post('/', authenticateToken, requireAdmin, createCollege);              /
 router.put('/:id', authenticateToken, requireAdmin, updateCollege);            // Admin.jsx
 router.delete('/:id', authenticateToken, requireAdmin, deleteCollege);         // Admin.jsx
 router.post('/:id/summary', authenticateToken, requireAdmin, triggerAiSummary); // Admin.jsx
+router.post('/refresh', authenticateToken, requireAdmin, refreshDataset);       // Admin.jsx (re-pull open datasets)
 
 export default router;

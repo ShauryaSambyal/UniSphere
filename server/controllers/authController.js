@@ -11,6 +11,19 @@ const generateToken = (id) => {
 };
 
 /**
+ * Google accounts listed in ADMIN_EMAILS (comma separated) are promoted to
+ * admins on sign-in. Sign-in is Google-only, so this allow-list is how an
+ * administrator account gets created without an email/password form.
+ */
+const adminEmails = () =>
+  new Set(
+    String(process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+/**
  * Register a new user.
  */
 export async function register(req, res) {
@@ -122,6 +135,7 @@ export async function firebaseAuth(req, res) {
     }
 
     const firebaseUid = payload.user_id || payload.sub;
+    const isAllowListedAdmin = adminEmails().has(email);
     let user = await User.findOne({ email });
 
     if (!user) {
@@ -129,12 +143,24 @@ export async function firebaseAuth(req, res) {
         name: name || payload.name || email.split('@')[0],
         email,
         firebaseUid,
-        role: role === 'admin' ? 'admin' : 'student'
+        role: isAllowListedAdmin || role === 'admin' ? 'admin' : 'student'
       });
-    } else if (!user.firebaseUid) {
+    } else {
+      let dirty = false;
+
       // Link this local account (e.g. a seeded demo user) to Firebase.
-      user.firebaseUid = firebaseUid;
-      await user.save();
+      if (!user.firebaseUid) {
+        user.firebaseUid = firebaseUid;
+        dirty = true;
+      }
+
+      // Promote (never demote) accounts named in ADMIN_EMAILS.
+      if (isAllowListedAdmin && user.role !== 'admin') {
+        user.role = 'admin';
+        dirty = true;
+      }
+
+      if (dirty) await user.save();
     }
 
     const token = generateToken(user._id);

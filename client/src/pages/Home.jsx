@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Award, BookOpen, IndianRupee, Briefcase, Plus, Check, ArrowRight, Sparkles, RefreshCw } from 'lucide-react';
+import { MapPin, Award, BookOpen, IndianRupee, Briefcase, Plus, Check, ArrowRight, Sparkles, RefreshCw, Database } from 'lucide-react';
 import Hero from '../components/Hero';
 import api from '../services/api';
+import { locationLabel, rankLabel, timeAgo } from '../lib/format';
 import { EASE } from '../lib/motion';
 
 export default function Home() {
@@ -12,6 +13,23 @@ export default function Home() {
   const [colleges, setColleges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [compareList, setCompareList] = useState([]);
+  const [dataset, setDataset] = useState(null);
+
+  // Provenance banner: which open datasets the directory was built from, and
+  // how fresh that data is.
+  useEffect(() => {
+    let cancelled = false;
+
+    api.get('/colleges/dataset')
+      .then(({ data }) => {
+        if (!cancelled) setDataset(data);
+      })
+      .catch((err) => console.error('Dataset info unavailable:', err));
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Parse filters from URL query parameters
   useEffect(() => {
@@ -74,8 +92,15 @@ export default function Home() {
               Explore colleges
             </h2>
             <p className="mt-1 text-sm font-normal text-muted">
-              {location.search ? 'Showing filtered results' : 'Browse highly ranked institutes across India'}
+              {location.search ? 'Showing filtered results' : 'Browse institutes across India'}
             </p>
+            {dataset && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-normal text-faint">
+                <Database size={12} className="shrink-0" />
+                <span>{dataset.total.toLocaleString()} colleges indexed from open datasets</span>
+                {dataset.lastSyncedAt && <span>· refreshed {timeAgo(dataset.lastSyncedAt)}</span>}
+              </p>
+            )}
           </div>
 
           {location.search && (
@@ -138,7 +163,7 @@ export default function Home() {
                       </div>
                       <div className="flex shrink-0 items-center gap-1 font-mono text-xs font-medium text-foreground">
                         <Award size={13} className="text-faint" />
-                        <span>#{college.nirfRanking}</span>
+                        <span>{rankLabel(college.nirfRanking || college.ranking?.nirf)}</span>
                       </div>
                     </div>
 
@@ -146,15 +171,15 @@ export default function Home() {
                     <div className="mt-4 space-y-2.5">
                       <div className="flex items-center gap-2 text-xs font-normal text-muted">
                         <MapPin size={13} className="shrink-0 text-faint" />
-                        <span>{college.location.city}, {college.location.state}</span>
+                        <span>{locationLabel(college.location)}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs font-normal text-muted">
                         <IndianRupee size={13} className="shrink-0 text-faint" />
-                        <span>{college.fees?.tuition} tuition</span>
+                        <span>{college.fees?.tuition || college.fees?.tuitionFee || 'Fees not reported'}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs font-normal text-muted">
                         <Briefcase size={13} className="shrink-0 text-faint" />
-                        <span>Avg package {college.placements?.averagePackage}</span>
+                        <span>Avg package {college.placements?.averagePackage || 'not reported'}</span>
                       </div>
                     </div>
 
@@ -168,6 +193,11 @@ export default function Home() {
                       {college.courses?.length > 2 && (
                         <span className="rounded-md bg-subtle px-2 py-0.5 text-[10px] font-medium text-faint">
                           +{college.courses.length - 2} more
+                        </span>
+                      )}
+                      {!college.courses?.length && (
+                        <span className="rounded-md bg-subtle px-2 py-0.5 text-[10px] font-medium text-faint">
+                          {college.website ? 'Course list on the official site' : 'Courses not reported'}
                         </span>
                       )}
                     </div>

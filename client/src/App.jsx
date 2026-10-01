@@ -6,7 +6,6 @@ import CollegeDetails from './pages/CollegeDetails';
 import Compare from './pages/Compare';
 import Recommendations from './pages/Recommendations';
 import Admin from './pages/Admin';
-import Chatbot from './components/Chatbot';
 import Chat from './pages/Chat';
 
 function App() {
@@ -25,7 +24,6 @@ function App() {
             <Route path="/chat" element={<Chat />} />
           </Routes>
         </main>
-        <Chatbot />
         <Footer />
       </div>
     </Router>

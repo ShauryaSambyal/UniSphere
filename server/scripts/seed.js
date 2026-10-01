@@ -1,17 +1,17 @@
 import '../config/env.js';
 import mongoose from 'mongoose';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import axios from 'axios';
 import College from '../models/College.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { syncCollegeToVectorDb } from '../services/chromaService.js';
-import { syncCollegeToSearch, syncAllCollegesToSearch } from '../services/searchService.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { syncCollegeToSearch, syncAllCollegesToSearch, clearSearchIndex } from '../services/searchService.js';
+import {
+  fetchOpenDatasetRecords,
+  readSnapshot,
+  slugify,
+  writeSnapshot
+} from '../services/datasetService.js';
 
 const mockColleges = [
   {
@@ -315,164 +315,75 @@ async function seed() {
     console.log('- Admin: admin@college.com (password: adminpassword123)');
     console.log('- Student: rahul@student.com (password: studentpassword123)');
 
-    // Seed Colleges from JSON file
-    console.log('Loading colleges from AICTE JSON data...');
-    const jsonPath = path.join(__dirname, '../data/AICTE_All_Colleges_Demo_Filled.json');
-    let aicteColleges = [];
+    // ── Colleges: curated flagship profiles + live open datasets ───────────
+    console.log('Loading colleges from open datasets (Hugging Face + UGC)…');
+    let openDataColleges = [];
+    let datasetMeta = null;
+
     try {
-      if (fs.existsSync(jsonPath)) {
-        const rawData = fs.readFileSync(jsonPath, 'utf8');
-        const parsedData = JSON.parse(rawData);
-        console.log(`Loaded ${parsedData.length} colleges from JSON.`);
-        
-        aicteColleges = parsedData.map(item => {
-          const name = item.Name || item.name || 'Unnamed College';
-          const aicteId = item.ID || item.aicteId || undefined;
-          const permanentId = item.ReferenceID || item.permanentId || undefined;
-          const instituteType = item.Type || item.instituteType || 'Co-Ed';
-          
-          let womenOnly = false;
-          if (typeof item.womenOnly === 'boolean') {
-            womenOnly = item.womenOnly;
-          } else if (item.WomenOnly === 'Y') {
-            womenOnly = true;
-          }
-
-          let hostelAvailable = false;
-          if (typeof item.hostelAvailable === 'boolean') {
-            hostelAvailable = item.hostelAvailable;
-          } else if (item.hostel?.boysHostel || item.hostel?.girlsHostel) {
-            hostelAvailable = true;
-          }
-
-          let address = '';
-          let district = '';
-          let city = '';
-          let state = '';
-          let latitude = 12.9716;
-          let longitude = 77.5946;
-
-          if (item.location) {
-            address = item.location.address || '';
-            district = item.location.district || '';
-            city = item.location.city || district || '';
-            state = item.location.state || '';
-            latitude = item.location.latitude || 12.9716;
-            longitude = item.location.longitude || 77.5946;
-          } else {
-            address = item.Address || '';
-            district = item.District || '';
-            city = district || '';
-          }
-
-          if (!city && district) {
-            city = district;
-          }
-          if (!state && district) {
-            const d = district.toLowerCase();
-            if (d === 'ghaziabad') {
-              state = 'Uttar Pradesh';
-              latitude = 28.6692;
-              longitude = 77.4538;
-            } else if (d === 'belgaum' || d === 'belagavi' || d === 'gadag' || d === 'gulbarga' || d === 'kalaburagi' || d === 'udupi' || d === 'ramanagara' || d === 'bangalore urban' || d === 'bangalore rural' || d === 'bijapur') {
-              state = 'Karnataka';
-              latitude = 12.9716 + (Math.random() - 0.5) * 0.1;
-              longitude = 77.5946 + (Math.random() - 0.5) * 0.1;
-            } else {
-              state = 'Karnataka';
-            }
-          }
-
-          const averagePackage = item.placements?.averagePackage || '0 LPA';
-          const medianPackage = item.placements?.medianPackage || '0 LPA';
-          const highestPackage = item.placements?.highestPackage || '0 LPA';
-          const placementPercentage = item.placements?.placementPercentage ? String(item.placements.placementPercentage) : '0';
-
-          const tuitionFee = item.fees?.tuitionFee ? String(item.fees.tuitionFee) : '0';
-          const hostelFee = item.fees?.hostelFee ? String(item.fees.hostelFee) : '0';
-          const totalFee = item.fees?.totalFee ? String(item.fees.totalFee) : '0';
-
-          const shortName = name.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 10);
-
-          return {
-            aicteId,
-            permanentId,
-            name,
-            shortName,
-            instituteType,
-            womenOnly,
-            hostelAvailable,
-            location: {
-              address,
-              district,
-              city: city || 'Bangalore',
-              state: state || 'Karnataka',
-              latitude,
-              longitude
-            },
-            ranking: {
-              nirf: item.ranking?.nirf || 999,
-              stateRank: item.ranking?.stateRank || 999
-            },
-            placements: {
-              averagePackage,
-              medianPackage,
-              highestPackage,
-              placementPercentage
-            },
-            fees: {
-              tuitionFee,
-              hostelFee,
-              totalFee,
-              tuition: tuitionFee + ' / Year',
-              hostel: hostelFee + ' / Year'
-            },
-            hostel: {
-              boysHostel: item.hostel?.boysHostel || false,
-              girlsHostel: item.hostel?.girlsHostel || false,
-              details: item.hostel?.details || ''
-            },
-            courses: item.courses || [],
-            facilities: item.facilities || [],
-            aiSummary: item.aiSummary || '',
-            nearbyPlaces: [],
-            reviews: []
-          };
-        });
+      const payload = await fetchOpenDatasetRecords();
+      openDataColleges = payload.colleges;
+      datasetMeta = payload.meta;
+      await writeSnapshot(payload);
+      console.log(`Fetched ${openDataColleges.length} colleges from ${payload.meta.sources.filter(s => s.ok).length} open source(s).`);
+    } catch (error) {
+      console.warn('Live open-data fetch failed:', error.message);
+      const snapshot = await readSnapshot();
+      if (snapshot) {
+        openDataColleges = snapshot.colleges;
+        datasetMeta = snapshot.meta;
+        console.log(`Using cached snapshot with ${openDataColleges.length} colleges.`);
       } else {
-        console.warn(`JSON file not found at ${jsonPath}. Seeding mock colleges only.`);
+        console.warn('No cached snapshot available — seeding curated profiles only.');
       }
-    } catch (err) {
-      console.warn('Error reading or parsing AICTE JSON data:', err.message);
     }
 
-    // Deduplicate colleges to prevent MongoDB Unique constraint errors on aicteId or permanentId
-    const seenAicteIds = new Set();
-    const seenNames = new Set();
+    // Curated profiles carry hand-verified fees/placement figures, so they are
+    // tagged separately from the open-data rows.
+    const curatedColleges = mockColleges.map(college => ({
+      ...college,
+      // Keep the legacy top-level field and ranking.nirf in sync — the UI reads
+      // both depending on the page.
+      nirfRanking: college.nirfRanking ?? 999,
+      ranking: { nirf: college.nirfRanking ?? null, stateRank: null },
+      sourceKey: `curated:${slugify(college.name)}`,
+      source: {
+        id: 'curated',
+        label: 'UniSphere curated profile',
+        license: 'Hand-verified profile'
+      },
+      syncedAt: new Date()
+    }));
 
-    mockColleges.forEach(c => {
-      if (c.aicteId) seenAicteIds.add(c.aicteId);
-      seenNames.add(c.name.toLowerCase());
+    const seenNames = new Set(curatedColleges.map(c => c.name.toLowerCase()));
+    const seenSourceKeys = new Set(curatedColleges.map(c => c.sourceKey));
+
+    const uniqueOpenDataColleges = openDataColleges.filter((college) => {
+      const lowerName = college.name.toLowerCase();
+      if (college.sourceKey && seenSourceKeys.has(college.sourceKey)) return false;
+      if (seenNames.has(lowerName)) return false;
+
+      if (college.sourceKey) seenSourceKeys.add(college.sourceKey);
+      seenNames.add(lowerName);
+      return true;
     });
 
-    const uniqueAicteColleges = [];
-    for (const college of aicteColleges) {
-      const lowerName = college.name.toLowerCase();
-      if (college.aicteId && seenAicteIds.has(college.aicteId)) {
-        continue;
+    const collegesToSeed = [...curatedColleges, ...uniqueOpenDataColleges];
+    console.log(`Inserting ${collegesToSeed.length} college documents in bulk...`);
+
+    const chunkSize = 500;
+    for (let index = 0; index < collegesToSeed.length; index += chunkSize) {
+      const chunk = collegesToSeed.slice(index, index + chunkSize);
+      try {
+        // ordered:false keeps the rest of the chunk going if one row collides.
+        await College.insertMany(chunk, { ordered: false });
+      } catch (error) {
+        console.warn(`Some rows in a batch were skipped: ${error.message}`);
       }
-      if (seenNames.has(lowerName)) {
-        continue;
-      }
-      if (college.aicteId) seenAicteIds.add(college.aicteId);
-      seenNames.add(lowerName);
-      uniqueAicteColleges.push(college);
     }
 
-    const collegesToSeed = [...mockColleges, ...uniqueAicteColleges];
-    console.log(`Inserting ${collegesToSeed.length} college documents in bulk...`);
-    
-    const savedColleges = await College.insertMany(collegesToSeed);
+    // Re-read so the index syncs below operate on exactly what was stored.
+    const savedColleges = await College.find({});
     console.log(`Successfully seeded ${savedColleges.length} colleges.`);
 
     // Seed some reviews for Colleges
@@ -510,8 +421,10 @@ async function seed() {
     let chromaCount = 0;
     let searchCount = 0;
 
-    // Bulk sync to Algolia Search
-    console.log('Syncing all colleges to Algolia search index in bulk...');
+    // Bulk sync to Algolia Search. The index is cleared first so records from
+    // earlier seeds cannot survive as orphaned hits.
+    console.log('Rebuilding the Algolia search index...');
+    await clearSearchIndex();
     const searchSynced = await syncAllCollegesToSearch(savedColleges);
     if (searchSynced) {
       searchCount = savedColleges.length;
@@ -527,9 +440,15 @@ async function seed() {
       chromaOnline = false;
     }
 
-    if (chromaOnline) {
-      console.log('ChromaDB is online. Syncing to vector database...');
-      for (const college of savedColleges) {
+    // Only rows with real narrative content (summary/courses) are worth
+    // embedding; raw directory rows would just burn an embedding per record.
+    const vectorCandidates = savedColleges.filter(
+      college => college.aiSummary || (college.courses && college.courses.length > 0)
+    );
+
+    if (chromaOnline && vectorCandidates.length > 0) {
+      console.log(`ChromaDB is online. Syncing ${vectorCandidates.length} enrichable colleges...`);
+      for (const college of vectorCandidates) {
         try {
           const cSynced = await syncCollegeToVectorDb(college);
           if (cSynced) chromaCount++;
@@ -537,11 +456,19 @@ async function seed() {
           console.error(`Vector DB sync error for ${college.name}:`, err.message);
         }
       }
+    } else if (chromaOnline) {
+      console.log('ChromaDB is online, but no college has embeddable content yet. Skipping vector sync.');
     } else {
       console.log('ChromaDB is offline. Skipping vector database synchronization.');
     }
 
     console.log(`\nDatabase seeding completed successfully!`);
+    if (datasetMeta) {
+      console.log(`- Open dataset snapshot generated at ${datasetMeta.generatedAt}`);
+      datasetMeta.sources.forEach(source =>
+        console.log(`  · ${source.label}: ${source.ok ? `${source.rows} rows` : 'unavailable'}`)
+      );
+    }
     console.log(`- Seeded ${savedColleges.length} colleges.`);
     console.log(`- Synced ${chromaCount}/${savedColleges.length} to ChromaDB vector store.`);
     console.log(`- Synced ${searchCount}/${savedColleges.length} to Algolia search index.`);

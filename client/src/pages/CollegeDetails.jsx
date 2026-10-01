@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Building2, Award, Star, Activity, BookOpen, DollarSign, BedDouble, Coffee, Loader2 } from 'lucide-react';
+import { MapPin, Building2, Award, Star, Activity, BookOpen, DollarSign, BedDouble, Coffee, Loader2, Database } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import api from '../services/api';
+import { locationLabel, rankLabel, timeAgo } from '../lib/format';
 import { fadeUp } from '../lib/motion';
 
 export default function CollegeDetails() {
@@ -68,7 +69,7 @@ export default function CollegeDetails() {
         <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-normal text-muted">
           <span className="flex items-center gap-1.5">
             <MapPin size={14} className="text-faint" />
-            {college.location?.city}, {college.location?.state}
+            {locationLabel(college.location)}
           </span>
           <span className="flex items-center gap-1.5">
             <Building2 size={14} className="text-faint" />
@@ -76,8 +77,26 @@ export default function CollegeDetails() {
           </span>
           <span className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider">
             <Award size={14} className="text-faint" />
-            NIRF #{college.ranking?.nirf || college.nirfRanking || '—'}
+            NIRF {rankLabel(college.ranking?.nirf || college.nirfRanking)}
           </span>
+          {college.source?.label && (
+            <span className="flex flex-wrap items-center gap-1.5 text-xs">
+              <Database size={14} className="text-faint" />
+              {college.website ? (
+                <a
+                  href={college.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-line-strong underline-offset-4 transition-colors duration-150 hover:text-foreground"
+                >
+                  {college.source.label}
+                </a>
+              ) : (
+                <span>{college.source.label}</span>
+              )}
+              {college.syncedAt && <span className="text-faint">· refreshed {timeAgo(college.syncedAt)}</span>}
+            </span>
+          )}
         </div>
       </motion.header>
 
@@ -187,6 +206,12 @@ export default function CollegeDetails() {
                   {c}
                 </span>
               ))}
+              {!college.courses?.length && (
+                <p className="text-sm font-normal text-faint">
+                  The open dataset does not list courses for this institution
+                  {college.website ? ' — check the official website for the current list.' : '.'}
+                </p>
+              )}
             </div>
           </motion.section>
         </div>

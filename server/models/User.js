@@ -35,16 +35,15 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Pre-save hook to hash password if modified
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+// Pre-save hook to hash the password when it changes. Mongoose 9 does not pass
+// a `next` callback to async middleware, so this returns normally and lets
+// rejected promises propagate as validation errors.
+userSchema.pre('save', async function () {
+  // Firebase-only accounts never have a local password to hash.
+  if (!this.isModified('password') || !this.password) return;
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Instance method to compare password

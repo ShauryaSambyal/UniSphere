@@ -5,6 +5,12 @@ import { generateCollegeSummary } from '../services/geminiService.js';
 import { getNearbyPlacesForAllTypes } from '../services/placesService.js';
 import { syncCollegeToVectorDb, deleteCollegeFromVectorDb } from '../services/chromaService.js';
 import { syncCollegeToSearch, deleteCollegeFromSearch, searchColleges } from '../services/searchService.js';
+import {
+  fetchOpenDatasetRecords,
+  readSnapshot,
+  upsertColleges,
+  writeSnapshot
+} from '../services/datasetService.js';
 
 /**
  * Get all colleges with filters.
@@ -106,6 +112,34 @@ export async function getCollegesByIds(req, res) {
 }
 
 /**
+ * Nearby places can only be meaningful when we know where the campus actually
+ * is — without coordinates the generator would invent places for the wrong
+ * city (it falls back to a default location).
+ */
+const hasCoordinates = (college) =>
+  Number.isFinite(college?.location?.latitude) && Number.isFinite(college?.location?.longitude);
+
+/**
+ * Resolves nearby places without blocking the response.
+ */
+async function loadNearbyPlacesInBackground(college) {
+  try {
+    const allNearby = await getNearbyPlacesForAllTypes(college);
+    if (allNearby.length === 0) return;
+
+    const savedPlaces = await NearbyPlace.insertMany(
+      allNearby.map(place => ({ ...place, collegeId: college._id }))
+    );
+
+    await College.findByIdAndUpdate(college._id, {
+      nearbyPlaces: savedPlaces.map(p => p._id)
+    });
+  } catch (error) {
+    console.error(`Nearby places failed for ${college.name}:`, error.message);
+  }
+}
+
+/**
  * Get detailed college by ID (including nearby places from Google Places API).
  */
 export async function getCollegeById(req, res) {
@@ -122,21 +156,11 @@ export async function getCollegeById(req, res) {
       return res.status(404).json({ message: 'College not found' });
     }
 
-    // If nearby places are not populated or empty, fetch them using Places API and save
-    if (!college.nearbyPlaces || college.nearbyPlaces.length === 0) {
-      const allNearby = await getNearbyPlacesForAllTypes(college);
-
-      if (allNearby.length > 0) {
-        const savedPlaces = await NearbyPlace.insertMany(
-          allNearby.map(place => ({
-            ...place,
-            collegeId: college._id
-          }))
-        );
-        college.nearbyPlaces = savedPlaces.map(p => p._id);
-        await college.save();
-        college.nearbyPlaces = savedPlaces; // Return populated list to the frontend
-      }
+    // Nearby places depend on an external model call, so they are resolved in
+    // the background: opening a college must never wait on them. Colleges with
+    // no coordinates are skipped entirely rather than given invented places.
+    if ((!college.nearbyPlaces || college.nearbyPlaces.length === 0) && hasCoordinates(college)) {
+      loadNearbyPlacesInBackground(college);
     }
 
     return res.json(college);
@@ -452,6 +476,82 @@ export async function getRecommendations(req, res) {
   } catch (error) {
     console.error('Error in getRecommendations:', error);
     return res.status(500).json({ message: 'Recommendation query failed' });
+  }
+}
+
+/**
+ * Describes where the directory data comes from: which open datasets were
+ * ingested, how many colleges each contributed, and when it last ran.
+ */
+export async function getDatasetInfo(req, res) {
+  try {
+    const [total, curated, lastSynced, sources, snapshot] = await Promise.all([
+      College.countDocuments({}),
+      College.countDocuments({ 'source.id': 'curated' }),
+      College.findOne({ sourceKey: { $exists: true } })
+        .sort({ syncedAt: -1 })
+        .select('syncedAt')
+        .lean(),
+      College.aggregate([
+        { $match: { 'source.id': { $exists: true, $ne: null } } },
+        {
+          $group: {
+            _id: '$source.id',
+            label: { $first: '$source.label' },
+            url: { $first: '$source.url' },
+            license: { $first: '$source.license' },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } }
+      ]),
+      readSnapshot()
+    ]);
+
+    return res.json({
+      total,
+      curated,
+      lastSyncedAt: lastSynced?.syncedAt || null,
+      sources: sources.map((source) => ({
+        id: source._id,
+        label: source.label,
+        url: source.url,
+        license: source.license,
+        count: source.count
+      })),
+      snapshot: snapshot
+        ? { generatedAt: snapshot.meta?.generatedAt || null, records: snapshot.colleges.length }
+        : null
+    });
+  } catch (error) {
+    console.error('Error in getDatasetInfo:', error);
+    return res.status(500).json({ message: 'Failed to read dataset information' });
+  }
+}
+
+/**
+ * Re-downloads every open dataset and upserts the result. This is what keeps
+ * the directory current without wiping admin edits.
+ */
+export async function refreshDataset(req, res) {
+  try {
+    const payload = await fetchOpenDatasetRecords();
+    await writeSnapshot(payload);
+
+    const result = await upsertColleges(College, payload.colleges);
+    const total = await College.countDocuments({});
+
+    return res.json({
+      message: `Refreshed ${result.total} colleges from open datasets (${result.inserted} new).`,
+      ...result,
+      total,
+      meta: payload.meta
+    });
+  } catch (error) {
+    console.error('Error in refreshDataset:', error);
+    return res.status(503).json({
+      message: `Could not refresh from the open datasets: ${error.message}`
+    });
   }
 }
 

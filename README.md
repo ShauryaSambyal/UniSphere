@@ -23,6 +23,7 @@ graph TD
 3. **AI Chatbot**: Pipes streaming HTTP chunked transfers to support ChatGPT-style typing effects.
 4. **Google Maps Integration**: Obtains nearby restaurants, cafes, hospitals, shopping malls, and transit hubs for any college location coordinates.
 5. **Recommendation Engine**: Scores matching colleges based on NIRF standings, package numbers, tuition constraints, and preferred cities.
+6. **Open-data directory**: The college directory is built from public datasets (Hugging Face + UGC) instead of a bundled demo file, and can be re-synced from those sources at any time. See [College Data & Open Datasets](#college-data--open-datasets).
 
 ---
 
@@ -35,20 +36,21 @@ UniSphere/
 │   ├── public/
 │   ├── src/
 │   │   ├── components/     # Navbar, Footer, LoginModal, Hero, Dropdown
-│   │   ├── context/        # AuthContext
-│   │   ├── lib/            # motion.jsx — shared animation variants
+│   │   ├── context/        # AuthContext (Google sign-in via Firebase)
+│   │   ├── lib/            # motion.jsx, format.js — shared variants + display helpers
 │   │   ├── pages/          # Home, CollegeDetails, Compare, Chat, Admin, Recommendations
-│   │   ├── services/       # api.js axios client
+│   │   ├── services/       # api.js axios client, firebase.js auth helpers
 │   │   ├── App.jsx         # Routes mounting
 │   │   └── index.css       # Design tokens, Tailwind base, scrollbar + marquee
 ├── server/                 # Express Backend
 │   ├── controllers/        # authController, collegeController, chatController, reviewController, embeddingController
+│   ├── data/               # colleges.open-data.json — cached dataset snapshot (generated)
 │   ├── middleware/         # auth (JWT checks and Admin gates)
 │   ├── models/             # Mongoose schemas (User, College, Review)
 │   ├── routes/             # API routing
-│   ├── services/           # geminiService, chromaService, searchService, placesService
+│   ├── services/           # geminiService, chromaService, searchService, placesService, datasetService
 │   ├── config/             # env.js — the single dotenv loader
-│   ├── scripts/            # seed.js database initialiser, checkDb.js
+│   ├── scripts/            # seed.js, syncDatasets.js, checkDb.js
 │   ├── .env                # Backend credentials (git-ignored)
 │   └── server.js           # Server startup script
 └── README.md
@@ -98,6 +100,10 @@ CHROMADB_HOST=http://localhost:8000
 # Must match the client's VITE_FIREBASE_PROJECT_ID.
 FIREBASE_PROJECT_ID=your-firebase-project-id
 
+# Comma-separated Google emails that should receive the admin role on sign-in.
+# Sign-in is Google-only, so this is how an administrator account is created.
+ADMIN_EMAILS=you@example.com
+
 # Optional alternative chat provider
 LLAMA_API_KEY=your-llama-api-key
 ```
@@ -115,17 +121,54 @@ VITE_FIREBASE_APP_ID=your-app-id
 
 *Note: Built-in automated fallbacks (mock data + MongoDB search) are in place if Algolia, ChromaDB, Gemini, Google Places, or Firebase keys are not configured or offline, enabling immediate out-of-the-box local testing.*
 
-### Enabling Firebase Authentication
+### Enabling Google Sign-in (Firebase)
 
-The login modal switches to the Firebase Web SDK as soon as the six `VITE_FIREBASE_*` values above are present. Until then it keeps using the built-in email/password flow, so the app works with or without Firebase keys.
+Google is the only sign-in method in the UI. Until the six `VITE_FIREBASE_*` values are present, the sign-in modal shows a setup checklist instead of a button, so nothing fails silently.
 
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
-2. **Authentication → Sign-in method**: enable **Email/Password** and (optionally) **Google**.
+2. **Authentication → Sign-in method**: enable **Google**.
 3. **Project settings → Your apps**: register a Web app and copy its config into `client/.env`.
 4. Put the same project ID in `server/.env` as `FIREBASE_PROJECT_ID`.
-5. For Google sign-in, add your dev origin under **Authentication → Settings → Authorized domains**.
+5. Add your dev origin (e.g. `localhost`) under **Authentication → Settings → Authorized domains**.
+6. Add your own Google address to `ADMIN_EMAILS` in `server/.env` to get the admin dashboard.
 
-Successful Firebase sign-ins are mirrored into MongoDB (the `User` document gains a `firebaseUid`) and exchanged for the app's JWT via `POST /api/auth/firebase`, so protected/admin routes and existing accounts (including the seeded demo users) keep working. Firebase ID tokens are verified server-side against Google's rotating public certificates — no service-account key required.
+Successful Firebase sign-ins are mirrored into MongoDB (the `User` document gains a `firebaseUid`) and exchanged for the app's JWT via `POST /api/auth/firebase`, so protected/admin routes keep working. Firebase ID tokens are verified server-side against Google's rotating public certificates — no service-account key required.
+
+The seeded email/password accounts still exist in the database and continue to work through `POST /api/auth/login` (handy for API testing with `curl`), but they are no longer reachable from the UI.
+
+---
+
+## College Data & Open Datasets
+
+The directory is seeded from public datasets rather than a bundled demo JSON file. `server/services/datasetService.js` downloads them, normalizes them into the `College` schema, and caches the result at `server/data/colleges.open-data.json`.
+
+| Source | Rows | What it contributes |
+| --- | --- | --- |
+| [DropTheHQ/global-universities](https://huggingface.co/datasets/DropTheHQ/global-universities) (Hugging Face) | 27,099 raw → ~1,350 India | Institution names, city, founding year, student counts, websites |
+| [UGC Indian University Dataset](https://github.com/Bluff-0/UGC_Indian-University-Dataset) (GitHub) | 976 | UGC-recognised universities with postal addresses, websites, contact details |
+
+Neither source needs an API key or an account. During ingestion the pipeline:
+
+- parses the state/UT and city out of free-text postal addresses,
+- de-duplicates by normalised name across both sources (richer row wins),
+- records provenance on every document (`sourceKey`, `source`, `syncedAt`).
+
+### Refreshing the data
+
+```bash
+cd server
+npm run data:sync            # download + rewrite the cached snapshot
+npm run data:sync -- --save  # also upsert into MongoDB (never deletes)
+npm run seed                 # full rebuild: wipe + curated profiles + open data
+```
+
+Admins can also press **Refresh open data** on the dashboard, which calls `POST /api/colleges/refresh` and upserts by `sourceKey`. `GET /api/colleges/dataset` reports which sources fed the directory and when it last synced; the home page header shows that freshness. If the download fails during `npm run seed`, the cached snapshot is used instead, so seeding still works offline.
+
+### What open data does *not* contain
+
+These datasets describe institution identity and location, not commercial outcomes. Fees, placement packages, placement rates and NIRF ranks are therefore absent for imported rows — the UI shows “Not reported” / “Unranked” instead of inventing numbers. The five curated profiles (RVCE, BMSCE, Christ, IIIT Bangalore, IIT Bombay) keep their hand-entered figures so the comparison table and placement charts stay meaningful.
+
+Adding a source means appending an entry to `SOURCES` in `datasetService.js`. Kaggle-hosted datasets can be added the same way, but the Kaggle download API requires a `KAGGLE_USERNAME`/`KAGGLE_KEY` credential pair.
 
 ---
 
@@ -158,15 +201,19 @@ npm run install-all
 ```
 
 ### 2. Seed the Database
-Make sure MongoDB is running locally. Then execute the database seeder to register sample records, default admin profiles, and default student accounts:
+Make sure MongoDB is running (local or Atlas). Then run the seeder — it downloads the open datasets, writes the cached snapshot, inserts the curated profiles, and creates the demo accounts:
 ```bash
 cd ../server
 npm run seed
 ```
 
-**Default Demo Credentials:**
+The first run needs internet access to reach the two public datasets; if they are unreachable, the previously cached snapshot is used.
+
+**Demo accounts (API testing only — the UI signs in with Google):**
 - **Student Account**: `rahul@student.com` / `studentpassword123`
 - **Admin Account**: `admin@college.com` / `adminpassword123`
+
+`npm run seed` clears the `users` and `colleges` collections before inserting, so it is a development tool, not something to run against a database with real accounts.
 
 ### 3. Run the Backend Server
 ```bash

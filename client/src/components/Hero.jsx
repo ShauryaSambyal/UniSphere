@@ -5,7 +5,7 @@ import { Search, MapPin, Award, Sparkles, ArrowRight, ChevronRight, Loader2 } fr
 import api from '../services/api';
 import Dropdown from './Dropdown';
 import useCollegeFilters from '../lib/useCollegeFilters';
-import { prettyLabel } from '../lib/format';
+import { locationLabel, prettyLabel, rankLabel } from '../lib/format';
 import { EASE, fadeUp, dropdownVariants, dropdownItem } from '../lib/motion';
 
 /* `mark: true` paints the word with the mint highlighter swash. */
@@ -21,19 +21,11 @@ const HEADLINE_LINE_2 = [
   { text: 'data.' },
 ];
 
-const STATS = [
-  { value: '990+', label: 'Indexed colleges' },
-  { value: 'RAG', label: 'Verified AI answers' },
+/* Only used until the live count arrives, so the hero never shows a blank. */
+const FALLBACK_STATS = [
+  { value: '2,000+', label: 'Indexed colleges' },
+  { value: 'Open data', label: 'Provenance tracked' },
   { value: '6', label: 'Data dimensions compared' },
-];
-
-const MARQUEE_ITEMS = [
-  '990+ institutes indexed',
-  'Fees normalised by branch',
-  'Placements cross-checked',
-  'Cutoffs compared side by side',
-  'AI answers with sources',
-  'Six dimensions per college',
 ];
 
 /* Quiet pill used by the three hero filters. */
@@ -78,6 +70,36 @@ export default function Hero() {
 
   // Every state / city / course present in the database (with an offline fallback).
   const { states, cities, courses } = useCollegeFilters();
+
+  // Live directory size — the headline numbers must never outpace the data.
+  const [collegeCount, setCollegeCount] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api.get('/colleges/stats')
+      .then(({ data }) => {
+        if (!cancelled && data?.totalColleges) setCollegeCount(data.totalColleges);
+      })
+      .catch((error) => console.error('Directory stats unavailable:', error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const countLabel = collegeCount ? `${collegeCount.toLocaleString()}+` : null;
+  const STATS = collegeCount
+    ? [{ value: countLabel, label: 'Indexed colleges' }, ...FALLBACK_STATS.slice(1)]
+    : FALLBACK_STATS;
+  const MARQUEE_ITEMS = [
+    `${countLabel || '2,000+'} institutes indexed`,
+    'Sourced from open datasets',
+    'Provenance on every record',
+    'Fees compared side by side',
+    'AI answers with sources',
+    'Refreshed from public data',
+  ];
 
   // Handle outside clicks to close the autocomplete dropdown
   useEffect(() => {
@@ -249,12 +271,12 @@ export default function Hero() {
                           <div className="mt-0.5 flex items-center gap-3 text-xs text-muted">
                             <span className="flex items-center gap-1">
                               <MapPin size={11} />
-                              {college.location.city}, {college.location.state}
+                              {locationLabel(college.location)}
                             </span>
-                            {college.nirfRanking && (
+                            {college.nirfRanking > 0 && college.nirfRanking < 999 && (
                               <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-faint">
                                 <Award size={10} />
-                                NIRF #{college.nirfRanking}
+                                NIRF {rankLabel(college.nirfRanking)}
                               </span>
                             )}
                           </div>
