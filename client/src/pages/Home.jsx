@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Award, BookOpen, IndianRupee, Briefcase, Plus, Check, ArrowRight, Sparkles, RefreshCw, Database } from 'lucide-react';
 import Hero from '../components/Hero';
 import api from '../services/api';
-import { locationLabel, rankLabel, timeAgo } from '../lib/format';
+import { locationLabel, nirfLabel, formatRupees, timeAgo } from '../lib/format';
 import { EASE } from '../lib/motion';
 
 export default function Home() {
@@ -31,17 +31,24 @@ export default function Home() {
     };
   }, []);
 
+  // Free-text search handed over by the hero search box ("?q="): shown in the
+  // heading and sent to the API.
+  const searchTerm = new URLSearchParams(location.search).get('q') || '';
+
   // Parse filters from URL query parameters
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const state = searchParams.get('state') || '';
     const city = searchParams.get('city') || '';
     const course = searchParams.get('course') || '';
+    const q = searchParams.get('q') || '';
 
     async function fetchColleges() {
       setLoading(true);
       try {
-        const res = await api.get(`/colleges?state=${state}&city=${city}&course=${course}`);
+        const res = await api.get(
+          `/colleges?state=${encodeURIComponent(state)}&city=${encodeURIComponent(city)}&course=${encodeURIComponent(course)}&q=${encodeURIComponent(q)}`
+        );
         setColleges(res.data);
       } catch (err) {
         console.error('Error fetching colleges:', err);
@@ -92,7 +99,11 @@ export default function Home() {
               Explore colleges
             </h2>
             <p className="mt-1 text-sm font-normal text-muted">
-              {location.search ? 'Showing filtered results' : 'Browse institutes across India'}
+              {searchTerm
+                ? `Results for “${searchTerm}”`
+                : location.search
+                  ? 'Showing filtered results'
+                  : 'Browse institutes across India'}
             </p>
             {dataset && (
               <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-normal text-faint">
@@ -127,7 +138,9 @@ export default function Home() {
             <BookOpen className="mx-auto mb-4 text-faint" size={40} />
             <h3 className="text-lg font-semibold text-foreground">No colleges found</h3>
             <p className="mx-auto mt-1 max-w-md text-sm font-normal text-muted">
-              We couldn't find colleges matching your criteria. Try loosening your filters or importing colleges via the admin dashboard.
+              {searchTerm
+                ? `Nothing in the directory matches “${searchTerm}”. Check the spelling, try a shorter term, or add the college from the admin dashboard.`
+                : "We couldn't find colleges matching your criteria. Try loosening your filters or importing colleges via the admin dashboard."}
             </p>
           </div>
         ) : (
@@ -163,7 +176,7 @@ export default function Home() {
                       </div>
                       <div className="flex shrink-0 items-center gap-1 font-mono text-xs font-medium text-foreground">
                         <Award size={13} className="text-faint" />
-                        <span>{rankLabel(college.nirfRanking || college.ranking?.nirf)}</span>
+                        <span>{nirfLabel(college)}</span>
                       </div>
                     </div>
 
@@ -179,7 +192,11 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-2 text-xs font-normal text-muted">
                         <Briefcase size={13} className="shrink-0 text-faint" />
-                        <span>Avg package {college.placements?.averagePackage || 'not reported'}</span>
+                        <span>
+                          {college.placements?.nirf?.medianSalary
+                            ? `Median salary ${formatRupees(college.placements.nirf.medianSalary)} (NIRF)`
+                            : `Avg package ${college.placements?.averagePackage || 'not reported'}`}
+                        </span>
                       </div>
                     </div>
 

@@ -11,19 +11,34 @@ import {
   upsertColleges,
   writeSnapshot
 } from '../services/datasetService.js';
+import { readNirfSnapshot, applyNirfSnapshot } from '../services/nirfService.js';
 
 /**
  * Get all colleges with filters.
  */
 export async function getAllColleges(req, res) {
   try {
-    const { city, state, course, type, limit } = req.query;
+    const { city, state, course, type, limit, q } = req.query;
     const filter = {};
 
-    if (city) filter['location.city'] = new RegExp(city, 'i');
-    if (state) filter['location.state'] = new RegExp(state, 'i');
-    if (course) filter.courses = new RegExp(course, 'i');
-    if (type) filter.instituteType = new RegExp(type, 'i');
+    if (city) filter['location.city'] = new RegExp(escapeRegex(city), 'i');
+    if (state) filter['location.state'] = new RegExp(escapeRegex(state), 'i');
+    if (course) filter.courses = new RegExp(escapeRegex(course), 'i');
+    if (type) filter.instituteType = new RegExp(escapeRegex(type), 'i');
+
+    // Free-text directory search. Used when the autocomplete index has no match
+    // for what was typed, so a search always lands on something.
+    const term = String(q || '').trim();
+    if (term) {
+      const regex = new RegExp(escapeRegex(term), 'i');
+      filter.$or = [
+        { name: regex },
+        { shortName: regex },
+        { 'location.city': regex },
+        { 'location.state': regex },
+        { courses: regex }
+      ];
+    }
 
     const listLimit = parseInt(limit, 10) || 50;
     const colleges = await College.find(filter)
@@ -417,10 +432,14 @@ const scoreCollege = (college, { budget, preferredCity, wantedTokens }) => {
     score += 25;
   }
 
-  // 5. Course / branch relevance (token overlap keeps this forgiving)
+  // 5. Course / branch relevance (token overlap keeps this forgiving). Broad
+  // streams and detailed specialisations both count, so "Computer Science"
+  // matches an institution that teaches it as a branch.
   let courseRatio = 0;
   if (wantedTokens.length > 0) {
-    const offered = new Set(courseTokens((college.courses || []).join(' ')));
+    const offered = new Set(
+      courseTokens([...(college.courses || []), ...(college.programmes || [])].join(' '))
+    );
     const matched = wantedTokens.filter(token => offered.has(token)).length;
     courseRatio = matched / wantedTokens.length;
     score += Math.round(courseRatio * 80);
@@ -485,7 +504,7 @@ export async function getRecommendations(req, res) {
  */
 export async function getDatasetInfo(req, res) {
   try {
-    const [total, curated, lastSynced, sources, snapshot] = await Promise.all([
+    const [total, curated, lastSynced, sources, snapshot, nirfSnapshot] = await Promise.all([
       College.countDocuments({}),
       College.countDocuments({ 'source.id': 'curated' }),
       College.findOne({ sourceKey: { $exists: true } })
@@ -505,7 +524,8 @@ export async function getDatasetInfo(req, res) {
         },
         { $sort: { count: -1 } }
       ]),
-      readSnapshot()
+      readSnapshot(),
+      readNirfSnapshot()
     ]);
 
     return res.json({
@@ -521,6 +541,15 @@ export async function getDatasetInfo(req, res) {
       })),
       snapshot: snapshot
         ? { generatedAt: snapshot.meta?.generatedAt || null, records: snapshot.colleges.length }
+        : null,
+      nirf: nirfSnapshot
+        ? {
+            year: nirfSnapshot.meta?.year || null,
+            generatedAt: nirfSnapshot.meta?.generatedAt || null,
+            records: nirfSnapshot.institutes.length,
+            dossiers: Object.keys(nirfSnapshot.dcs || {}).length,
+            sourceUrl: nirfSnapshot.meta?.sourceUrl || null
+          }
         : null
     });
   } catch (error) {
@@ -538,13 +567,19 @@ export async function refreshDataset(req, res) {
     const payload = await fetchOpenDatasetRecords();
     await writeSnapshot(payload);
 
+    // Overlay NIRF rankings/placements from the committed snapshot. This only
+    // reads files — no scraping happens inside the API request.
+    const nirfSnapshot = await readNirfSnapshot();
+    const nirfMatched = nirfSnapshot ? applyNirfSnapshot(payload.colleges, nirfSnapshot).matched : 0;
+
     const result = await upsertColleges(College, payload.colleges);
     const total = await College.countDocuments({});
 
     return res.json({
-      message: `Refreshed ${result.total} colleges from open datasets (${result.inserted} new).`,
+      message: `Refreshed ${result.total} colleges from open datasets (${result.inserted} new${nirfMatched ? `, NIRF data on ${nirfMatched}` : ''}).`,
       ...result,
       total,
+      nirfMatched,
       meta: payload.meta
     });
   } catch (error) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
-import { locationLabel, rankLabel } from '../lib/format';
+import { locationLabel, nirfLabel } from '../lib/format';
 import { Check, X, Search, Plus, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { fadeUp } from '../lib/motion';
@@ -169,7 +169,7 @@ export default function Compare() {
                 <tbody className="divide-y divide-line text-sm">
                   <tr>
                     <td className="p-4 font-normal text-muted">NIRF ranking</td>
-                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-mono text-xs text-foreground">{rankLabel(c.ranking?.nirf || c.nirfRanking)}</td>)}
+                    {selectedColleges.map(c => <td key={c._id} className="p-4 font-mono text-xs text-foreground">{nirfLabel(c)}</td>)}
                   </tr>
                   <tr>
                     <td className="p-4 font-normal text-muted">Institute type</td>

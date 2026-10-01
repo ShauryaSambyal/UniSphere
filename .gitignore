@@ -133,3 +133,6 @@ public/
 # Uploads and temporary uploads (keep directory but ignore files)
 server/uploads/*
 !server/uploads/.gitkeep
+
+# Cached NIRF/PDF downloads (the parsed snapshot is committed instead)
+server/data/.nirf-cache/

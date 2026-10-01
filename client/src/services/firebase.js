@@ -12,10 +12,14 @@ import {
  * When the keys are missing, the app does not crash on import — it simply
  * reports that Google sign-in is unavailable.
  */
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  // The default auth domain is always <project-id>.firebaseapp.com, so derive
+  // it instead of failing when only this one key was forgotten.
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || (projectId ? `${projectId}.firebaseapp.com` : ''),
+  projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID

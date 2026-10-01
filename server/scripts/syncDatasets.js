@@ -2,6 +2,7 @@ import '../config/env.js';
 import mongoose from 'mongoose';
 import College from '../models/College.js';
 import { fetchOpenDatasetRecords, writeSnapshot, upsertColleges } from '../services/datasetService.js';
+import { readNirfSnapshot, applyNirfSnapshot } from '../services/nirfService.js';
 
 /**
  * Refreshes the college directory from public open datasets.
@@ -19,6 +20,18 @@ async function main() {
     const payload = await fetchOpenDatasetRecords();
     const snapshotPath = await writeSnapshot(payload);
 
+    // Overlay the committed NIRF rankings + placement dossiers (if any) before
+    // writing to the database. The open-data snapshot stays source-pure.
+    const nirfSnapshot = await readNirfSnapshot();
+    let nirfMatched = 0;
+    if (nirfSnapshot) {
+      const outcome = applyNirfSnapshot(payload.colleges, nirfSnapshot);
+      nirfMatched = outcome.matched;
+      console.log(
+        `NIRF ${nirfSnapshot.meta?.year || ''} data attached to ${outcome.matched} colleges.`
+      );
+    }
+
     console.log(`\nSnapshot written to ${snapshotPath}`);
     console.log(`Records: ${payload.colleges.length}`);
     for (const source of payload.meta.sources) {
@@ -33,7 +46,9 @@ async function main() {
     const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/college-platform';
     await mongoose.connect(uri);
     const result = await upsertColleges(College, payload.colleges);
-    console.log(`Database now holds ${result.total} open-data colleges (${result.inserted} new).`);
+    console.log(
+      `Database now holds ${result.total} open-data colleges (${result.inserted} new, ${nirfMatched} with NIRF data).`
+    );
     await mongoose.disconnect();
 
     process.exit(0);

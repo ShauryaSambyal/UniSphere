@@ -8,10 +8,12 @@ import { syncCollegeToVectorDb } from '../services/chromaService.js';
 import { syncCollegeToSearch, syncAllCollegesToSearch, clearSearchIndex } from '../services/searchService.js';
 import {
   fetchOpenDatasetRecords,
+  normalizeName,
   readSnapshot,
   slugify,
   writeSnapshot
 } from '../services/datasetService.js';
+import { readNirfSnapshot, applyNirfSnapshot } from '../services/nirfService.js';
 
 const mockColleges = [
   {
@@ -355,20 +357,37 @@ async function seed() {
       syncedAt: new Date()
     }));
 
-    const seenNames = new Set(curatedColleges.map(c => c.name.toLowerCase()));
+    // Skip open-data rows that duplicate a curated profile (comparing on a
+    // normalized key so "R.V. College of Engineering" matches "RV College of
+    // Engineering"). Open-data rows are otherwise kept as-is: they were already
+    // deduplicated by name *and state*, so two same-named colleges in different
+    // states both survive.
+    const curatedNames = new Set(curatedColleges.map(c => normalizeName(c.name)));
     const seenSourceKeys = new Set(curatedColleges.map(c => c.sourceKey));
 
     const uniqueOpenDataColleges = openDataColleges.filter((college) => {
-      const lowerName = college.name.toLowerCase();
       if (college.sourceKey && seenSourceKeys.has(college.sourceKey)) return false;
-      if (seenNames.has(lowerName)) return false;
+      if (curatedNames.has(normalizeName(college.name))) return false;
 
       if (college.sourceKey) seenSourceKeys.add(college.sourceKey);
-      seenNames.add(lowerName);
       return true;
     });
 
     const collegesToSeed = [...curatedColleges, ...uniqueOpenDataColleges];
+
+    // Overlay the committed NIRF snapshot (rankings + DCS placement dossiers).
+    // Curated profiles are enriched too — an official rank and median salary
+    // beats a hand-typed figure whenever NIRF has the institute.
+    const nirfSnapshot = await readNirfSnapshot();
+    if (nirfSnapshot) {
+      const outcome = applyNirfSnapshot(collegesToSeed, nirfSnapshot);
+      console.log(
+        `Attached NIRF ${nirfSnapshot.meta?.year || ''} data to ${outcome.matched} of ${collegesToSeed.length} colleges.`
+      );
+    } else {
+      console.log('No NIRF snapshot found — run `npm run data:nirf` for rankings & placements.');
+    }
+
     console.log(`Inserting ${collegesToSeed.length} college documents in bulk...`);
 
     const chunkSize = 500;

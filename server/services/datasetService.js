@@ -10,13 +10,15 @@ import '../config/env.js';
  * Instead of shipping a hand-filled demo JSON file, the directory is built from
  * public datasets that are free to download and need no API key:
  *
- *   1. Hugging Face — DropTheHQ/global-universities (27k universities worldwide)
- *   2. GitHub — UGC Indian University Dataset (976 UGC-recognised universities)
+ *   1. GitHub — UGC Indian University Dataset (976 UGC-recognised universities)
+ *   2. Hugging Face — DropTheHQ/global-universities (27k universities worldwide)
+ *   3. GitHub — AICTE Indian Colleges Dataset (~13k approved institutions,
+ *      including engineering colleges, with their programmes and affiliation)
  *
- * `syncDatasetsToDatabase()` re-downloads them and upserts the result, which is
- * what the admin "Refresh open data" button and `npm run data:sync` call. A
- * cached snapshot is written to server/data/colleges.open-data.json so seeding
- * still works offline.
+ * `fetchOpenDatasetRecords()` re-downloads them and returns normalized College
+ * documents; the admin "Refresh open data" button and `npm run data:sync` call
+ * it. A cached snapshot is written to server/data/colleges.open-data.json so
+ * seeding still works offline.
  */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +28,13 @@ export const SNAPSHOT_PATH = path.join(__dirname, '../data/colleges.open-data.js
 
 export const SOURCES = [
   {
+    id: 'ugc-indian-universities',
+    label: 'GitHub · UGC Indian University Dataset',
+    url: 'https://raw.githubusercontent.com/Bluff-0/UGC_Indian-University-Dataset/master/UGC%20Universities.csv',
+    license: 'UGC public university listing',
+    country: 'India'
+  },
+  {
     id: 'huggingface-global-universities',
     label: 'Hugging Face · DropTheHQ/global-universities',
     url: 'https://huggingface.co/datasets/DropTheHQ/global-universities/resolve/main/global-universities.csv',
@@ -33,11 +42,22 @@ export const SOURCES = [
     country: 'India'
   },
   {
-    id: 'ugc-indian-universities',
-    label: 'GitHub · UGC Indian University Dataset',
-    url: 'https://raw.githubusercontent.com/Bluff-0/UGC_Indian-University-Dataset/master/UGC%20Universities.csv',
-    license: 'UGC public university listing',
-    country: 'India'
+    id: 'aicte-indian-colleges',
+    label: 'GitHub · AICTE Indian Colleges Dataset',
+    url: 'https://github.com/anburocky3/indian-colleges-data',
+    license: 'AICTE approved-institution listing (public)',
+    country: 'India',
+    // One JSON file per state/UT. Split rather than one 12 MB file so a single
+    // slow state can fail without losing the rest.
+    files: [
+      'andaman-and-nicobar-islands', 'andhra-pradesh', 'arunachal-pradesh',
+      'assam', 'bihar', 'chandigarh', 'chhattisgarh', 'dadra-and-nagar-haveli',
+      'daman-and-diu', 'delhi', 'goa', 'gujarat', 'haryana', 'himachal-pradesh',
+      'jammu-and-kashmir', 'jharkhand', 'karnataka', 'kerala', 'madhya-pradesh',
+      'maharashtra', 'manipur', 'meghalaya', 'mizoram', 'nagaland', 'odisha',
+      'puducherry', 'punjab', 'rajasthan', 'sikkim', 'tamil-nadu', 'telangana',
+      'tripura', 'uttar-pradesh', 'uttarakhand', 'west-bengal'
+    ].map(slug => `https://raw.githubusercontent.com/anburocky3/indian-colleges-data/main/data/states/${slug}.json`)
   }
 ];
 
@@ -183,6 +203,14 @@ export function buildShortName(name) {
     .split(/\s+/)
     .filter(Boolean);
 
+  // A college that opens with its own abbreviation keeps it: "BNM Institute of
+  // Technology" is BNM — taking initials from every word would produce "BIT".
+  const first = words[0] || '';
+  const notAnAcronym = new Set(['THE', 'AND', 'OF', 'A', 'AN', 'SRI', 'SHRI', 'ST']);
+  if (/^[A-Z][A-Z0-9&]{1,5}$/.test(first) && !notAnAcronym.has(first)) {
+    return first;
+  }
+
   const initials = words
     .filter((word) => !filler.has(word.toLowerCase()))
     .map((word) => word[0])
@@ -200,8 +228,73 @@ export function extractState(address) {
   return INDIAN_STATES.find((state) => haystack.includes(state.toLowerCase())) || '';
 }
 
-const titleCase = (value) =>
-  String(value || '').replace(/[A-Za-z]+/g, (word) => word[0].toUpperCase() + word.slice(1).toLowerCase());
+/**
+ * The upstream datasets contain a handful of double-encoded characters (a
+ * non-breaking space stored as "Â "). Normalizing them keeps names readable
+ * instead of importing the mojibake as-is.
+ */
+const normalizeText = (value) =>
+  String(value || '')
+    .replace(/[\u00c2\u00a0\u200b]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// Small words stay lowercase mid-phrase: "Indian Institute of Technology".
+const MINOR_WORDS = new Set(['and', 'of', 'in', 'for', 'to', 'the', 'a', 'an', 'at', 'on', 'by']);
+
+/**
+ * Capitalises the first letter of a token, ignoring leading punctuation so
+ * "(DATA" becomes "(Data" and leaving digits alone ("12TH" → "12th").
+ */
+const capitaliseToken = (word) => {
+  const lower = word.toLowerCase();
+  const letter = lower.match(/[a-z]/);
+  if (!letter) return lower;
+
+  const index = lower.indexOf(letter[0]);
+  return lower.slice(0, index) + letter[0].toUpperCase() + lower.slice(index + 1);
+};
+
+/**
+ * Title-cases a value while preserving acronyms. AICTE data is entirely upper
+ * case, so "BNM INSTITUTE OF TECHNOLOGY" must become "BNM Institute of
+ * Technology" — not "Bnm Institute of Technology".
+ */
+const smartTitleCase = (value) =>
+  normalizeText(value)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word, index) => {
+      const lower = word.toLowerCase();
+
+      // Minor words are checked first: "OF" and "AND" are vowel-poor but they
+      // are not initialisms.
+      if (index > 0 && MINOR_WORDS.has(lower)) return lower;
+
+      const vowels = (word.match(/[AEIOUYaeiouy]/g) || []).length;
+      // Short, vowel-poor words read as initialisms (BNM, RVCE, KLE, IIT).
+      if (word.length <= 6 && vowels <= 1) return word.toUpperCase();
+
+      return capitaliseToken(word);
+    })
+    .join(' ');
+
+/** Runs an async worker over items with a bounded number of parallel calls. */
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await worker(items[index], index);
+    }
+  });
+
+  await Promise.all(runners);
+  return results;
+}
 
 /** Strips postal prefixes such as "Dist.", "P.O" and stray punctuation. */
 function cleanAddressToken(token) {
@@ -232,7 +325,7 @@ export function extractCity(address, state) {
 
   if (tokens.length === 0) return '';
 
-  return titleCase(tokens[tokens.length - 1]);
+  return smartTitleCase(tokens[tokens.length - 1]);
 }
 
 function extractPincode(address) {
@@ -262,9 +355,11 @@ function inferInstituteType(name, declaredType) {
 
 /** Names like "University of Hyderabad" keep their subject in the middle. */
 function tidyName(name) {
-  return String(name || '')
+  return normalizeText(name)
+    .replace(/["']/g, '')
     .replace(/\s+/g, ' ')
     .replace(/\s*,\s*/g, ', ')
+    .replace(/^[\s,;.-]+|[\s,;.-]+$/g, '')
     .trim();
 }
 
@@ -277,36 +372,46 @@ function isUsableName(name) {
 
 /**
  * Turns the raw rows of every source into College-shaped documents.
- * Records are deduplicated by normalised name, keeping the richer row.
+ *
+ * Records are deduplicated by normalised name *and state*, so the same college
+ * listed by two sources becomes one document while two genuinely different
+ * institutions sharing a name in different states stay separate.
  */
-export function buildCollegeRecords({ hfRows = [], ugcRows = [] } = {}) {
-  const byName = new Map();
+export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] } = {}) {
+  const byKey = new Map();
 
   const upsert = (record) => {
-    const key = normalizeName(record.name);
-    if (!key) return;
+    const key = `${normalizeName(record.name)}|${normalizeName(record.location?.state || '')}`;
+    if (!normalizeName(record.name)) return;
 
-    const existing = byName.get(key);
+    const existing = byKey.get(key);
     if (!existing) {
-      byName.set(key, record);
+      byKey.set(key, record);
       return;
     }
 
-    // Merge: keep whichever source knows more about the institution.
-    const richer = { ...existing };
-    richer.location = {
+    // Merge: keep whatever each source knows, preferring the first (richer)
+    // source for identity and filling the gaps from the record we just read.
+    const merged = { ...existing };
+    merged.location = {
       ...existing.location,
       state: existing.location.state || record.location.state,
       city: existing.location.city || record.location.city,
+      district: existing.location.district || record.location.district,
       address: existing.location.address || record.location.address,
       pincode: existing.location.pincode || record.location.pincode
     };
-    richer.website = existing.website || record.website;
-    richer.foundedYear = existing.foundedYear ?? record.foundedYear;
-    richer.studentCount = existing.studentCount ?? record.studentCount;
-    richer.sources = [...new Set([...(existing.sources || []), ...(record.sources || [])])];
-    richer.sourceKey = existing.sourceKey || record.sourceKey;
-    byName.set(key, richer);
+    merged.website = existing.website || record.website;
+    merged.foundedYear = existing.foundedYear ?? record.foundedYear;
+    merged.studentCount = existing.studentCount ?? record.studentCount;
+    merged.affiliatedTo = existing.affiliatedTo || record.affiliatedTo;
+    merged.aicteId = existing.aicteId || record.aicteId;
+    merged.womenOnly = Boolean(existing.womenOnly || record.womenOnly);
+    merged.courses = [...new Set([...(existing.courses || []), ...(record.courses || [])])].slice(0, 12);
+    merged.programmes = [...new Set([...(existing.programmes || []), ...(record.programmes || [])])].slice(0, 25);
+    merged.sources = [...new Set([...(existing.sources || []), ...(record.sources || [])])];
+    merged.sourceKey = existing.sourceKey || record.sourceKey;
+    byKey.set(key, merged);
   };
 
   // ── UGC Indian University Dataset ─────────────────────────────────────────
@@ -334,6 +439,9 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [] } = {}) {
       website: String(row.Website || '').trim(),
       foundedYear: null,
       studentCount: null,
+      courses: [],
+      programmes: [],
+      affiliatedTo: '',
       sourceKey: `ugc:${slugify(name)}`,
       sources: ['ugc-indian-universities']
     });
@@ -368,12 +476,96 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [] } = {}) {
       website: String(row.website || '').trim(),
       foundedYear: Number.isFinite(founded) ? founded : null,
       studentCount: Number.parseInt(row.students, 10) || null,
+      courses: [],
+      programmes: [],
+      affiliatedTo: '',
       sourceKey: `hf:${slugify(row.slug || name)}`,
       sources: ['huggingface-global-universities']
     });
   }
 
-  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  // ── AICTE approved institutions ───────────────────────────────────────────
+  for (const row of aicteRows) {
+    const name = tidyName(row.institute_name);
+    if (!isUsableName(name)) continue;
+
+    const programmes = Array.isArray(row.programmes) ? row.programmes : [];
+    // Diploma-only entries are polytechnics; keep degree-granting colleges.
+    // Records with no programme list at all are kept — that is a data gap, not
+    // evidence that the college teaches nothing.
+    const grantsDegrees =
+      programmes.length === 0 || programmes.some((p) => /GRADUATE/i.test(p.level || ''));
+    if (!grantsDegrees) continue;
+
+    const district = smartTitleCase(row.district || '');
+    const address = String(row.address || '').replace(/\s+/g, ' ').trim();
+    const state = tidyName(row.state) || extractState(address);
+
+    upsert({
+      name: smartTitleCase(name),
+      shortName: buildShortName(name),
+      instituteType: tidyName(row.institution_type) || inferInstituteType(name),
+      womenOnly: String(row.women || '').trim().toUpperCase() === 'Y',
+      hostelAvailable: false,
+      location: {
+        address,
+        district,
+        // The district is the reliable, consistent locality in this dataset.
+        city: district || extractCity(address, state),
+        state,
+        pincode: extractPincode(address)
+      },
+      website: '',
+      foundedYear: null,
+      studentCount: null,
+      courses: aicteStreams(programmes),
+      programmes: aicteBranches(programmes),
+      affiliatedTo: smartTitleCase(row.university || ''),
+      aicteId: row.aicte_id || undefined,
+      sourceKey: `aicte:${slugify(row.aicte_id || name)}`,
+      sources: ['aicte-indian-colleges']
+    });
+  }
+
+  return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Values that appear in the programme columns but are not courses. */
+const NOT_A_COURSE = /^(1st|2nd|3rd|first|second|third)\s+shift$|^shift$|^n\/?a$|^\d+$|^-+$/i;
+
+/**
+ * Broad streams an institution teaches ("ENGINEERING AND TECHNOLOGY",
+ * "MANAGEMENT"). These drive the course filter and the match maker, so they
+ * stay at a granularity a student can actually choose between.
+ */
+function aicteStreams(programmes) {
+  const names = new Set();
+
+  for (const programme of programmes || []) {
+    const stream = tidyName(programme.programme);
+    if (!stream || stream.length < 3 || NOT_A_COURSE.test(stream)) continue;
+    names.add(smartTitleCase(stream));
+  }
+
+  return [...names].sort().slice(0, 8);
+}
+
+/**
+ * Detailed specialisations ("COMPUTER SCIENCE AND ENGINEERING"), shown on the
+ * college page and used for course matching.
+ */
+function aicteBranches(programmes) {
+  const byKey = new Map();
+
+  for (const programme of programmes || []) {
+    const branch = tidyName(programme.course);
+    if (!branch || branch.length < 3 || NOT_A_COURSE.test(branch)) continue;
+
+    const key = branch.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, smartTitleCase(key));
+  }
+
+  return [...byKey.values()].sort().slice(0, 25);
 }
 
 /** Shapes a record into a document that matches the College schema. */
@@ -408,8 +600,11 @@ export function toCollegeDocument(record, sourceById, syncedAt = new Date()) {
     fees: {},
     placements: {},
     hostel: { boysHostel: false, girlsHostel: false, details: '' },
-    courses: [],
+    courses: record.courses || [],
+    programmes: record.programmes || [],
     facilities: [],
+    aicteId: record.aicteId || undefined,
+    affiliatedTo: record.affiliatedTo || '',
     aiSummary: '',
     nearbyPlaces: [],
     reviews: [],
@@ -427,7 +622,7 @@ async function fetchText(url) {
     transformResponse: [(data) => data],
     headers: {
       'User-Agent': 'UniSphere-OpenDataSync/1.0 (+https://github.com/UniSphere)',
-      Accept: 'text/csv,text/plain,*/*'
+      Accept: 'text/csv,text/plain,application/json,*/*'
     }
   });
   return String(response.data || '');
@@ -442,14 +637,37 @@ export async function fetchOpenDatasetRecords({ log = console.log } = {}) {
   const raw = {};
   const failures = [];
 
+  const loadSource = async (source) => {
+    log(`Fetching ${source.label}…`);
+
+    if (!source.files) {
+      const rows = parseCsv(await fetchText(source.url));
+      if (rows.length === 0) throw new Error('dataset returned no rows');
+      log(`  → ${rows.length} rows`);
+      return rows;
+    }
+
+    // Multi-file source (one file per state): partial success is fine.
+    let failed = 0;
+    const perFile = await mapWithConcurrency(source.files, 5, async (url) => {
+      try {
+        const parsed = JSON.parse(await fetchText(url));
+        return Array.isArray(parsed) ? parsed : parsed?.institutions || [];
+      } catch {
+        failed += 1;
+        return [];
+      }
+    });
+
+    const rows = perFile.flat();
+    if (rows.length === 0) throw new Error('dataset returned no rows');
+    log(`  → ${rows.length} rows from ${source.files.length - failed}/${source.files.length} files`);
+    return rows;
+  };
+
   for (const source of SOURCES) {
     try {
-      log(`Fetching ${source.label}…`);
-      const text = await fetchText(source.url);
-      const rows = parseCsv(text);
-      if (rows.length === 0) throw new Error('dataset returned no rows');
-      raw[source.id] = rows;
-      log(`  → ${rows.length} rows`);
+      raw[source.id] = await loadSource(source);
     } catch (error) {
       failures.push({ source: source.id, message: error.message });
       log(`  ! ${source.label} unavailable: ${error.message}`);
@@ -458,16 +676,17 @@ export async function fetchOpenDatasetRecords({ log = console.log } = {}) {
 
   const hfRows = raw['huggingface-global-universities'] || [];
   const ugcRows = raw['ugc-indian-universities'] || [];
+  const aicteRows = raw['aicte-indian-colleges'] || [];
 
-  if (hfRows.length === 0 && ugcRows.length === 0) {
+  if (hfRows.length === 0 && ugcRows.length === 0 && aicteRows.length === 0) {
     throw new Error(
       `Could not reach any open dataset. ${failures.map((f) => `${f.source}: ${f.message}`).join('; ')}`
     );
   }
 
   const syncedAt = new Date();
-  const records = buildCollegeRecords({ hfRows, ugcRows });
-  const maxRecords = Number.parseInt(process.env.DATASET_MAX_RECORDS, 10) || 2500;
+  const records = buildCollegeRecords({ hfRows, ugcRows, aicteRows });
+  const maxRecords = Number.parseInt(process.env.DATASET_MAX_RECORDS, 10) || 15000;
   const limited = records.slice(0, maxRecords);
 
   return {
@@ -488,10 +707,13 @@ export async function fetchOpenDatasetRecords({ log = console.log } = {}) {
   };
 }
 
-/** Writes the fetched dataset to disk so seeding can run without network. */
+/**
+ * Writes the fetched dataset to disk so seeding can run without network.
+ * Stored compactly: at ~13k records a pretty-printed file would be enormous.
+ */
 export async function writeSnapshot(payload) {
   await fs.mkdir(path.dirname(SNAPSHOT_PATH), { recursive: true });
-  await fs.writeFile(SNAPSHOT_PATH, JSON.stringify(payload, null, 2), 'utf8');
+  await fs.writeFile(SNAPSHOT_PATH, JSON.stringify(payload), 'utf8');
   return SNAPSHOT_PATH;
 }
 
@@ -508,7 +730,7 @@ export async function readSnapshot() {
 }
 
 /**
- * Uprets the open-data records into MongoDB, keyed by sourceKey so repeat
+ * Upserts the open-data records into MongoDB, keyed by sourceKey so repeat
  * refreshes update instead of duplicating.
  */
 export async function upsertColleges(College, colleges, { log = console.log } = {}) {

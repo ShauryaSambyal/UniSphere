@@ -9,6 +9,7 @@
     "dev": "nodemon server.js",
     "seed": "node scripts/seed.js",
     "data:sync": "node scripts/syncDatasets.js",
+    "data:nirf": "node scripts/syncNirf.js",
     "db:check": "node scripts/checkDb.js"
   },
   "dependencies": {
@@ -22,7 +23,8 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.10.2",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "pdfjs-dist": "^6.3.289"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

@@ -5,7 +5,7 @@ import { Sparkles, MapPin, Award, IndianRupee, ChevronRight, SearchX, Loader2 } 
 import api from '../services/api';
 import Dropdown from '../components/Dropdown';
 import useCollegeFilters from '../lib/useCollegeFilters';
-import { locationLabel, prettyLabel, rankLabel } from '../lib/format';
+import { locationLabel, prettyLabel, nirfLabel } from '../lib/format';
 import { EASE, fadeUp } from '../lib/motion';
 
 export default function Recommendations() {
@@ -190,7 +190,7 @@ export default function Recommendations() {
                         </span>
                         <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted">
                           <Award size={11} className="text-faint" />
-                          NIRF {rankLabel(item.nirfRanking || item.ranking?.nirf)}
+                          NIRF {nirfLabel(item)}
                         </span>
                       </div>
                       <h4 className="mt-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">{item.name}</h4>

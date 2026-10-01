@@ -10,6 +10,11 @@ const INDEX_NAME = process.env.ALGOLIA_INDEX_NAME || 'colleges';
 // still honoured as a single-key fallback for both.
 const ALGOLIA_WRITE_API_KEY =
   process.env.ALGOLIA_WRITE_API_KEY || process.env.ALGOLIA_API_KEY || '';
+
+// A full directory rebuild writes one indexing operation per record, which can
+// burn a free Algolia plan in a single seed. Above this many colleges the bulk
+// sync is skipped and search uses the MongoDB fallback instead.
+const ALGOLIA_MAX_RECORDS = Number.parseInt(process.env.ALGOLIA_MAX_RECORDS, 10) || 4000;
 const ALGOLIA_SEARCH_API_KEY =
   process.env.ALGOLIA_SEARCH_API_KEY || process.env.ALGOLIA_API_KEY || '';
 
@@ -91,6 +96,15 @@ export async function syncCollegeToSearch(college) {
  */
 export async function syncAllCollegesToSearch(colleges) {
   if (!writeClient) return false;
+
+  if (colleges.length > ALGOLIA_MAX_RECORDS) {
+    console.warn(
+      `Skipping the bulk Algolia sync: ${colleges.length} colleges exceeds ALGOLIA_MAX_RECORDS (${ALGOLIA_MAX_RECORDS}). ` +
+      'Autocomplete will use the MongoDB search fallback. Raise ALGOLIA_MAX_RECORDS in server/.env if your Algolia plan allows it.'
+    );
+    return false;
+  }
+
   try {
     const docs = colleges.map(college => ({
       objectID: college._id.toString(),
@@ -154,6 +168,27 @@ export async function deleteCollegeFromSearch(collegeId) {
 }
 
 /**
+ * Ranks a MongoDB match against the query. Lower is better: an exact
+ * abbreviation ("BNM" → shortName "BNM") must outrank a name that merely
+ * contains those letters somewhere ("Bhupender Narayan Mandal University").
+ */
+function matchScore(college, term) {
+  const name = String(college.name || '').toLowerCase();
+  const short = String(college.shortName || '').toLowerCase();
+
+  if (short === term) return 0;
+  if (name === term) return 1;
+  // The query matching a whole leading word beats matching inside a longer one.
+  if (name.startsWith(`${term} `)) return 2;
+  if (short.startsWith(term)) return 3;
+  if (name.startsWith(term)) return 4;
+  if (name.includes(` ${term}`)) return 5;
+  if (short.includes(term)) return 6;
+  if (name.includes(term)) return 7;
+  return 8;
+}
+
+/**
  * Perform search queries.
  * Falls back to MongoDB text/regex matching if Algolia is not available.
  */
@@ -198,10 +233,11 @@ export async function searchColleges(queryText, limit = 10) {
     }
   }
 
-  // MongoDB Regex Match Fallback
+  // MongoDB Regex Match Fallback. Over-fetch so the results can be ranked by
+  // relevance before the page is trimmed to `limit`.
   const escapedQuery = queryText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
   const regex = new RegExp(escapedQuery, 'i');
-  return College.find({
+  const matches = await College.find({
     $or: [
       { name: regex },
       { shortName: regex },
@@ -209,7 +245,12 @@ export async function searchColleges(queryText, limit = 10) {
       { 'location.state': regex },
       { courses: regex }
     ]
-  }).limit(limit);
+  }).limit(limit * 4);
+
+  const term = queryText.trim().toLowerCase();
+  return matches
+    .sort((a, b) => matchScore(a, term) - matchScore(b, term) || a.name.localeCompare(b.name))
+    .slice(0, limit);
 }
 
 // Trigger index configuration on load

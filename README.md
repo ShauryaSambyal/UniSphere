@@ -144,13 +144,16 @@ The directory is seeded from public datasets rather than a bundled demo JSON fil
 
 | Source | Rows | What it contributes |
 | --- | --- | --- |
-| [DropTheHQ/global-universities](https://huggingface.co/datasets/DropTheHQ/global-universities) (Hugging Face) | 27,099 raw → ~1,350 India | Institution names, city, founding year, student counts, websites |
 | [UGC Indian University Dataset](https://github.com/Bluff-0/UGC_Indian-University-Dataset) (GitHub) | 976 | UGC-recognised universities with postal addresses, websites, contact details |
+| [DropTheHQ/global-universities](https://huggingface.co/datasets/DropTheHQ/global-universities) (Hugging Face) | 27,099 raw → ~1,350 India | Institution names, city, founding year, student counts, websites |
+| [AICTE Indian Colleges Dataset](https://github.com/anburocky3/indian-colleges-data) (GitHub) | 13,089 | AICTE-approved colleges with district, institution type, university affiliation and programme lists |
 
-Neither source needs an API key or an account. During ingestion the pipeline:
+No source needs an API key or an account. The result is roughly **12,200 colleges across 35 states/UTs**. During ingestion the pipeline:
 
 - parses the state/UT and city out of free-text postal addresses,
-- de-duplicates by normalised name across both sources (richer row wins),
+- keeps degree-granting institutions (diploma-only polytechnics are skipped),
+- splits AICTE programmes into broad streams (`courses`, e.g. "Engineering and Technology") and detailed specialisations (`programmes`, e.g. "Computer Science and Engineering"),
+- de-duplicates by normalised name **and state**, so the same college listed by two sources becomes one record while two same-named colleges in different states both survive,
 - records provenance on every document (`sourceKey`, `source`, `syncedAt`).
 
 ### Refreshing the data
@@ -162,11 +165,38 @@ npm run data:sync -- --save  # also upsert into MongoDB (never deletes)
 npm run seed                 # full rebuild: wipe + curated profiles + open data
 ```
 
-Admins can also press **Refresh open data** on the dashboard, which calls `POST /api/colleges/refresh` and upserts by `sourceKey`. `GET /api/colleges/dataset` reports which sources fed the directory and when it last synced; the home page header shows that freshness. If the download fails during `npm run seed`, the cached snapshot is used instead, so seeding still works offline.
+Admins can also press **Refresh open data** on the dashboard, which calls `POST /api/colleges/refresh`, upserts by `sourceKey` and re-applies the committed NIRF snapshot. `GET /api/colleges/dataset` reports which sources fed the directory and when it last synced; the home page header shows that freshness. If the download fails during `npm run seed`, the cached snapshot is used instead, so seeding still works offline.
+
+The cached snapshot is written compactly and is about 11 MB at full size — add `server/data/colleges.open-data.json` to `.gitignore` if you would rather not carry it in version control.
+
+### NIRF rankings & official placement dossiers
+
+The Ministry of Education's National Institutional Ranking Framework ([nirfindia.org](https://www.nirfindia.org/)) publishes, for every edition:
+
+- per-category rank lists — exact ranks, scores and parameter breakdowns for the **top 100** institutions, and alphabetical **rank-band** lists (101–150, 151–200, 201–300) beyond that, and
+- per-institute **Data Submitted by Institution (DCS) PDFs** — sanctioned intake, student strength, faculty count, and the placement & higher-studies table per programme level (graduates, placed, *median salary of placed graduates*, higher studies).
+
+`server/services/nirfService.js` scrapes those pages and parses the PDFs in-process (`pdfjs-dist`, no external binary), caches every parsed dossier under `server/data/.nirf-cache/` (git-ignored, resumable) and writes the committed snapshot `server/data/nirf.data.json` (~2 MB) for the latest edition — the service auto-detects the newest edition on the site (currently 2025).
+
+```bash
+cd server
+npm run data:nirf              # scrape rankings + fetch/parse all DCS PDFs, write snapshot
+npm run data:nirf -- --rankings-only
+npm run data:nirf -- --apply   # enrich MongoDB (upsert, never deletes)
+npm run data:nirf -- --from-snapshot --apply   # re-apply the committed snapshot only
+```
+
+NIRF institute names are fuzzy-matched to directory records — initials folding (`R.V.` = `RV`), acronym expansion (`IIT Bombay` = `Indian Institute of Technology Bombay`), city aliases (Bangalore/Bengaluru, Gurgaon/Gurugram, …) with state as the tie-breaker — and ambiguous matches are dropped rather than attaching the wrong institute's numbers. The current snapshot maps **472 of 12,201 colleges**, including 257 exact ranks and 256 complete placement dossiers. Per college it writes `nirf` (best rank, per-category ranks and bands, source), `placements.nirf` (placed / graduates / rate / median salary / higher studies per programme level), `studentStrength` and `facultyCount`, and folds the best rank into `nirfRanking` so directory sorting and the match maker prefer ranked institutions. Banded colleges display "Band 101–150" instead of a fake exact rank.
 
 ### What open data does *not* contain
 
-These datasets describe institution identity and location, not commercial outcomes. Fees, placement packages, placement rates and NIRF ranks are therefore absent for imported rows — the UI shows “Not reported” / “Unranked” instead of inventing numbers. The five curated profiles (RVCE, BMSCE, Christ, IIIT Bangalore, IIT Bombay) keep their hand-entered figures so the comparison table and placement charts stay meaningful.
+**Fees and hostel details.** No government open dataset publishes per-college tuition or hostel fees — NIRF dossiers report fee-reimbursement counts but not fees, AICTE/UGC listings carry none, and data.gov.in has no bulk fee dataset. The UI states that explicitly and links to the institution's website when the directory knows it. Hostel availability is likewise not reported, so imported rows no longer show struck-through "boys / girls" badges (which wrongly implied "no hostel").
+
+Everything else that used to be "Not reported" now comes from NIRF wherever it has the institution: placement rates, median salaries, graduates/placed counts and higher-study numbers are official DCS figures, and ranks come from the official rank lists. The five curated profiles keep their hand-entered values as a fallback.
+
+### Search index limits
+
+A full rebuild writes one Algolia indexing operation per college, so the bulk sync is skipped above `ALGOLIA_MAX_RECORDS` (default 4,000) and search falls back to MongoDB — the fallback ranks results by relevance, so `BNM` still finds BNM Institute of Technology. Raise the limit in `server/.env` if your Algolia plan allows a full sync.
 
 Adding a source means appending an entry to `SOURCES` in `datasetService.js`. Kaggle-hosted datasets can be added the same way, but the Kaggle download API requires a `KAGGLE_USERNAME`/`KAGGLE_KEY` credential pair.
 

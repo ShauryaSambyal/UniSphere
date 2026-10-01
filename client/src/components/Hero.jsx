@@ -5,7 +5,7 @@ import { Search, MapPin, Award, Sparkles, ArrowRight, ChevronRight, Loader2 } fr
 import api from '../services/api';
 import Dropdown from './Dropdown';
 import useCollegeFilters from '../lib/useCollegeFilters';
-import { locationLabel, prettyLabel, rankLabel } from '../lib/format';
+import { locationLabel, prettyLabel, nirfLabel, hasNirf } from '../lib/format';
 import { EASE, fadeUp, dropdownVariants, dropdownItem } from '../lib/motion';
 
 /* `mark: true` paints the word with the mint highlighter swash. */
@@ -135,16 +135,26 @@ export default function Hero() {
     return () => clearTimeout(delayDebounce);
   }, [query]);
 
-  // Submitting the search goes straight to the best match when we have one,
-  // otherwise it drops the visitor into the full directory.
+  // Submitting the search goes straight to the best match when we have one.
+  // Otherwise the query is handed to the directory as a filter — the page must
+  // never scroll away on its own while the visitor is still looking for a
+  // college.
   const handleSearchSubmit = (event) => {
     event.preventDefault();
+    const term = query.trim();
+
     if (suggestions.length > 0) {
       navigate(`/college/${suggestions[0]._id}`);
       setIsOpen(false);
+      setQuery('');
       return;
     }
-    document.getElementById('listings-section')?.scrollIntoView({ behavior: 'smooth' });
+
+    if (!term) return;
+
+    navigate(`/?q=${encodeURIComponent(term)}`);
+    setIsOpen(false);
+    setQuery('');
   };
 
   const handleFilterSearch = (event) => {
@@ -273,10 +283,10 @@ export default function Hero() {
                               <MapPin size={11} />
                               {locationLabel(college.location)}
                             </span>
-                            {college.nirfRanking > 0 && college.nirfRanking < 999 && (
+                            {hasNirf(college) && (
                               <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-faint">
                                 <Award size={10} />
-                                NIRF {rankLabel(college.nirfRanking)}
+                                NIRF {nirfLabel(college)}
                               </span>
                             )}
                           </div>

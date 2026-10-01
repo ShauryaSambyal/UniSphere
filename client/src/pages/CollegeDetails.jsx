@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { MapPin, Building2, Award, Star, Activity, BookOpen, DollarSign, BedDouble, Coffee, Loader2, Database } from 'lucide-react';
+import { MapPin, Building2, Award, Star, Activity, BookOpen, DollarSign, BedDouble, Coffee, Loader2, Database, Users, GraduationCap, ExternalLink } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import api from '../services/api';
-import { locationLabel, rankLabel, timeAgo } from '../lib/format';
+import { locationLabel, nirfLabel, formatRupees, timeAgo } from '../lib/format';
 import { fadeUp } from '../lib/motion';
 
 export default function CollegeDetails() {
@@ -44,6 +44,25 @@ export default function CollegeDetails() {
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-faint" /></div>;
   if (!college) return <div className="py-20 text-center text-lg text-muted">College not found</div>;
 
+  const nirfPlacements = college.placements?.nirf || null;
+  const nirfYear = college.nirf?.year || nirfPlacements?.year;
+  const nirfCategory = college.nirf?.bestCategory || college.nirf?.bands?.[0]?.category;
+
+  const hasFeeData = Boolean(
+    college.fees?.tuition || college.fees?.tuitionFee || college.fees?.totalFee ||
+      college.fees?.hostel || college.fees?.hostelFee
+  );
+  const hasHostelData = Boolean(
+    college.hostel?.boysHostel || college.hostel?.girlsHostel || college.hostel?.details
+  );
+  const hasLegacyPlacements = Boolean(
+    college.placements?.averagePackage || college.placements?.medianPackage ||
+      college.placements?.highestPackage || college.placements?.placementPercentage
+  );
+
+  const prettyLevel = (level) =>
+    String(level || '').replace(/\s*\[(\d+)\s*Years?\s*Program\(s\)\]/i, ' · $1-year').trim();
+
   const placementData = [
     { name: 'Average', value: parseFloat(college.placements?.averagePackage) || 0 },
     { name: 'Median', value: parseFloat(college.placements?.medianPackage) || 0 },
@@ -77,8 +96,28 @@ export default function CollegeDetails() {
           </span>
           <span className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider">
             <Award size={14} className="text-faint" />
-            NIRF {rankLabel(college.ranking?.nirf || college.nirfRanking)}
+            NIRF {nirfLabel(college)}
+            {nirfCategory ? ` · ${nirfCategory}` : ''}
+            {nirfYear ? ` · ${nirfYear}` : ''}
           </span>
+          {college.affiliatedTo && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <Building2 size={14} className="text-faint" />
+              Affiliated to {college.affiliatedTo}
+            </span>
+          )}
+          {college.studentCount > 0 && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <Users size={14} className="text-faint" />
+              {Number(college.studentCount).toLocaleString('en-IN')} students
+            </span>
+          )}
+          {college.facultyCount > 0 && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <GraduationCap size={14} className="text-faint" />
+              {Number(college.facultyCount).toLocaleString('en-IN')} faculty
+            </span>
+          )}
           {college.source?.label && (
             <span className="flex flex-wrap items-center gap-1.5 text-xs">
               <Database size={14} className="text-faint" />
@@ -103,9 +142,20 @@ export default function CollegeDetails() {
       {/* Key metrics strip */}
       <motion.div {...fadeUp(0.05)} className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
-          { label: 'Avg package', value: college.placements?.averagePackage || '—' },
+          {
+            label: nirfPlacements?.medianSalary ? 'Median package (NIRF)' : 'Avg package',
+            value: nirfPlacements?.medianSalary
+              ? formatRupees(nirfPlacements.medianSalary)
+              : college.placements?.averagePackage || '—',
+          },
           { label: 'Highest', value: college.placements?.highestPackage || '—' },
-          { label: 'Placement rate', value: college.placements?.placementPercentage || '—' },
+          {
+            label: nirfPlacements?.placementRate != null ? 'Placement rate (NIRF)' : 'Placement rate',
+            value:
+              nirfPlacements?.placementRate != null
+                ? `${nirfPlacements.placementRate}%`
+                : college.placements?.placementPercentage || '—',
+          },
           { label: 'Tuition', value: college.fees?.tuition || college.fees?.tuitionFee || '—' },
         ].map((m) => (
           <div key={m.label} className="rounded-xl border border-line bg-card p-5">
@@ -147,13 +197,81 @@ export default function CollegeDetails() {
             )}
           </motion.section>
 
-          {/* Placements Chart */}
+          {/* Placements — official NIRF dossier when available, curated chart otherwise */}
           <motion.section {...fadeUp(0.15)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <h2 className="mb-6 flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
               <Activity size={16} className="text-faint" />
-              Placements overview
+              Placements
+              {nirfPlacements && (
+                <span className="font-mono text-[10px] font-normal uppercase tracking-wider text-faint">
+                  NIRF {nirfPlacements.year}
+                </span>
+              )}
             </h2>
-            <div className="h-72 w-full">
+
+            {nirfPlacements?.levels?.length > 0 ? (
+              <>
+                <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { label: 'Placed', value: nirfPlacements.placed?.toLocaleString('en-IN') ?? '—' },
+                    { label: 'Graduates', value: nirfPlacements.graduates?.toLocaleString('en-IN') ?? '—' },
+                    {
+                      label: 'Placement rate',
+                      value: nirfPlacements.placementRate != null ? `${nirfPlacements.placementRate}%` : '—',
+                    },
+                    { label: 'Higher studies', value: nirfPlacements.higherStudies?.toLocaleString('en-IN') ?? '—' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="rounded-xl border border-line bg-subtle p-4">
+                      <div className="text-xl font-semibold tracking-tight text-foreground">{stat.value}</div>
+                      <div className="mt-1 text-[11px] font-normal text-muted">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-[11px] uppercase tracking-wider text-faint">
+                        <th className="py-2 pr-4 font-medium">Programme</th>
+                        <th className="py-2 pr-4 font-medium">Year</th>
+                        <th className="py-2 pr-4 font-medium">Graduating</th>
+                        <th className="py-2 pr-4 font-medium">Placed</th>
+                        <th className="py-2 pr-4 font-medium">Median salary</th>
+                        <th className="py-2 font-medium">Higher studies</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nirfPlacements.levels.map((entry, index) => (
+                        <tr key={index} className="border-b border-line last:border-0">
+                          <td className="py-3 pr-4 font-medium text-foreground">{prettyLevel(entry.level)}</td>
+                          <td className="py-3 pr-4 font-mono text-xs text-muted">{entry.latest?.graduatingYear || '—'}</td>
+                          <td className="py-3 pr-4 text-muted">{entry.latest?.graduating ?? '—'}</td>
+                          <td className="py-3 pr-4 text-muted">{entry.latest?.placed ?? '—'}</td>
+                          <td className="py-3 pr-4 font-medium text-foreground">{formatRupees(entry.latest?.medianSalary) || '—'}</td>
+                          <td className="py-3 text-muted">{entry.latest?.higherStudies ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs font-normal text-muted">
+                  <span>Official data submitted by the institution — median salary of placed graduates.</span>
+                  {nirfPlacements.sourceUrl && (
+                    <a
+                      href={nirfPlacements.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 underline decoration-line-strong underline-offset-4 transition-colors duration-150 hover:text-foreground"
+                    >
+                      View NIRF dossier <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+              </>
+            ) : hasLegacyPlacements ? (
+              <>
+                <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={placementData} margin={{ top: 16, right: 8, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 6" stroke="var(--color-line-strong)" vertical={false} />
@@ -185,10 +303,17 @@ export default function CollegeDetails() {
                   <Bar dataKey="value" fill="var(--color-foreground)" radius={[6, 6, 0, 0]} maxBarSize={64} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-            <div className="mt-4 border-t border-line pt-3 text-center text-xs font-normal text-muted">
-              Placement rate: {college.placements?.placementPercentage || 'N/A'}
-            </div>
+                </div>
+                <div className="mt-4 border-t border-line pt-3 text-center text-xs font-normal text-muted">
+                  Placement rate: {college.placements?.placementPercentage || 'N/A'}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm font-normal leading-relaxed text-muted">
+                Neither the NIRF dossier nor the open datasets report placement figures for this
+                institution{college.website ? ' — check the official website.' : '.'}
+              </p>
+            )}
           </motion.section>
 
           {/* Courses */}
@@ -206,13 +331,31 @@ export default function CollegeDetails() {
                   {c}
                 </span>
               ))}
-              {!college.courses?.length && (
+              {!college.courses?.length && !college.programmes?.length && (
                 <p className="text-sm font-normal text-faint">
                   The open dataset does not list courses for this institution
                   {college.website ? ' — check the official website for the current list.' : '.'}
                 </p>
               )}
             </div>
+
+            {college.programmes?.length > 0 && (
+              <div className="mt-5 border-t border-line pt-4">
+                <h3 className="mb-2.5 text-[11px] font-medium uppercase tracking-wider text-faint">
+                  Specialisations ({college.programmes.length})
+                </h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {college.programmes.map((programme, i) => (
+                    <span
+                      key={i}
+                      className="rounded-md border border-line px-2.5 py-1 text-[11px] font-normal text-muted"
+                    >
+                      {programme}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.section>
         </div>
 
@@ -224,33 +367,56 @@ export default function CollegeDetails() {
               <DollarSign size={16} className="text-faint" />
               Fees &amp; hostel
             </h2>
-            <ul>
-              {[
-                ['Tuition fee', college.fees?.tuitionFee || college.fees?.tuition],
-                ['Hostel fee', college.fees?.hostelFee || college.fees?.hostel],
-                ['Total fee', college.fees?.totalFee],
-              ].map(([label, value], i, arr) => (
-                <li
-                  key={label}
-                  className={`flex items-center justify-between py-2.5 text-sm ${i < arr.length - 1 ? 'border-b border-line' : ''}`}
-                >
-                  <span className="font-normal text-muted">{label}</span>
-                  <span className="font-medium text-foreground">{value || 'N/A'}</span>
-                </li>
-              ))}
-            </ul>
+            {hasFeeData ? (
+              <ul>
+                {[
+                  ['Tuition fee', college.fees?.tuitionFee || college.fees?.tuition],
+                  ['Hostel fee', college.fees?.hostelFee || college.fees?.hostel],
+                  ['Total fee', college.fees?.totalFee],
+                ].map(([label, value], i, arr) => (
+                  <li
+                    key={label}
+                    className={`flex items-center justify-between py-2.5 text-sm ${i < arr.length - 1 ? 'border-b border-line' : ''}`}
+                  >
+                    <span className="font-normal text-muted">{label}</span>
+                    <span className="font-medium text-foreground">{value || 'N/A'}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm font-normal leading-relaxed text-muted">
+                Tuition and hostel fees are not published in the government open datasets this
+                directory is built from (NIRF, AICTE, UGC).
+                {college.website && (
+                  <a
+                    href={college.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-foreground underline decoration-line-strong underline-offset-4 transition-colors duration-150 hover:opacity-70"
+                  >
+                    Check the official website <ExternalLink size={11} />
+                  </a>
+                )}
+              </div>
+            )}
             <div className="mt-5 border-t border-line pt-4">
               <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-faint">
                 Hostel availability
               </h3>
-              <div className="flex gap-2">
-                <span className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${college.hostel?.boysHostel ? 'border-line bg-subtle text-foreground' : 'border-line bg-transparent text-faint line-through'}`}>
-                  <BedDouble size={12} /> Boys
-                </span>
-                <span className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${college.hostel?.girlsHostel ? 'border-line bg-subtle text-foreground' : 'border-line bg-transparent text-faint line-through'}`}>
-                  <BedDouble size={12} /> Girls
-                </span>
-              </div>
+              {hasHostelData ? (
+                <div className="flex gap-2">
+                  <span className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${college.hostel?.boysHostel ? 'border-line bg-subtle text-foreground' : 'border-line bg-transparent text-faint line-through'}`}>
+                    <BedDouble size={12} /> Boys
+                  </span>
+                  <span className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium ${college.hostel?.girlsHostel ? 'border-line bg-subtle text-foreground' : 'border-line bg-transparent text-faint line-through'}`}>
+                    <BedDouble size={12} /> Girls
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm font-normal text-muted">
+                  Not recorded in the government open datasets — check the official website.
+                </p>
+              )}
             </div>
           </motion.section>
 
