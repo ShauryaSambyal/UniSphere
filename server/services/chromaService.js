@@ -5,7 +5,6 @@ import '../config/env.js';
 const CHROMADB_HOST = process.env.CHROMADB_HOST || 'http://localhost:8000';
 const COLLECTION_NAME = 'colleges_collection';
 
-// Dynamic import of Transformers.js (Hugging Face) to run BAAI/bge-large-en-v1.5 in-process
 let extractor = null;
 let extractorPromise = null;
 
@@ -17,9 +16,9 @@ async function getExtractor() {
     try {
       console.log('Initializing @huggingface/transformers pipeline for BAAI/bge-large-en-v1.5...');
       const { pipeline } = await import('@huggingface/transformers');
-      // Xenova/bge-large-en-v1.5 is the ONNX-ready port of BAAI/bge-large-en-v1.5
+
       extractor = await pipeline('feature-extraction', 'Xenova/bge-large-en-v1.5', {
-        dtype: 'q8' // 8-bit quantized weights: smaller download, lower memory usage
+        dtype: 'q8'
       });
       console.log('BAAI/bge-large-en-v1.5 model loaded successfully.');
       return extractor;
@@ -33,17 +32,8 @@ async function getExtractor() {
   return extractorPromise;
 }
 
-// The first embedding request downloads a ~330 MB ONNX model. A user request
-// that arrives while that download is still running must not wait on it
-// forever, so the pipeline init gets a bounded window. The download itself
-// keeps running in the background and later requests reuse it once ready.
 const EMBEDDING_INIT_TIMEOUT_MS = Number(process.env.EMBEDDING_INIT_TIMEOUT_MS) || 20000;
 
-/**
- * Kick off the embedding pipeline load without blocking the caller.
- * Called once at server boot (only when ChromaDB is reachable) so the model
- * is warm before the first user query arrives.
- */
 export async function warmUpEmbeddingPipeline() {
   if (extractor || extractorPromise) return;
 
@@ -54,10 +44,6 @@ export async function warmUpEmbeddingPipeline() {
   getExtractor().catch(() => {});
 }
 
-/**
- * Resolves with the extractor, or null when it is not ready within the init
- * timeout (still downloading or failed to load).
- */
 async function getExtractorBounded() {
   if (extractor) return extractor;
 
@@ -71,11 +57,6 @@ async function getExtractorBounded() {
   return result;
 }
 
-/**
- * Generate a 1024-dimension embedding using BAAI/bge-large-en-v1.5.
- * Returns null when the local model is unavailable so callers can fall back
- * to MongoDB search rather than waiting on (or corrupting) the vector index.
- */
 export async function getEmbedding(text) {
   try {
     const ext = await getExtractorBounded();
@@ -92,9 +73,6 @@ export async function getEmbedding(text) {
   }
 }
 
-/**
- * Checks connection to ChromaDB.
- */
 async function isChromaOnline() {
   try {
     const res = await axios.get(`${CHROMADB_HOST}/api/v1/heartbeat`, { timeout: 2000 });
@@ -104,20 +82,17 @@ async function isChromaOnline() {
   }
 }
 
-/**
- * Get or create ChromaDB Collection ID.
- */
 async function getCollectionId() {
   const online = await isChromaOnline();
   if (!online) return null;
 
   try {
-    // Check if collection exists
+
     const res = await axios.get(`${CHROMADB_HOST}/api/v1/collections/${COLLECTION_NAME}`);
     return res.data.id;
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      // Create collection
+
       try {
         const createRes = await axios.post(`${CHROMADB_HOST}/api/v1/collections`, {
           name: COLLECTION_NAME,
@@ -134,10 +109,6 @@ async function getCollectionId() {
   }
 }
 
-/**
- * Sync College documents into ChromaDB.
- * Format matching user specifications.
- */
 export async function syncCollegeToVectorDb(college) {
   const docText = `College Name:
 ${college.name}
@@ -187,9 +158,6 @@ ${college.hostel?.available ? 'Available' : 'Not Available'}`;
   }
 }
 
-/**
- * Remove college from Vector DB.
- */
 export async function deleteCollegeFromVectorDb(collegeId) {
   const colId = await getCollectionId();
   if (!colId) return false;
@@ -205,14 +173,9 @@ export async function deleteCollegeFromVectorDb(collegeId) {
   }
 }
 
-/**
- * Keyword / ranking fallback used whenever ChromaDB or the embedding model is
- * unavailable. Never throws: worst case it returns the top-ranked colleges.
- */
 async function searchMongoFallback(queryText, limit) {
   let matchedColleges = [];
 
-  // 1. Try Mongoose text search for high relevance ranking
   try {
     matchedColleges = await College.find(
       { $text: { $search: queryText } },
@@ -227,7 +190,6 @@ async function searchMongoFallback(queryText, limit) {
     console.warn('MongoDB text search index query failed. Falling back to regex keyword search:', err.message);
   }
 
-  // 2. If text search returned nothing (or failed), use regex keyword search
   if (matchedColleges.length === 0) {
     const stopwords = new Set(['what', 'are', 'nearby', 'shops', 'in', 'on', 'at', 'of', 'to', 'by', 'is', 'an', 'it', 'the', 'for', 'and', 'or', 'if', 'this', 'that', 'with', 'about', 'from']);
     const cleanQuery = queryText.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ');
@@ -252,7 +214,6 @@ async function searchMongoFallback(queryText, limit) {
     }
   }
 
-  // 3. Absolute fallback to NIRF ranking top colleges
   if (matchedColleges.length === 0) {
     matchedColleges = await College.find({}).populate('nearbyPlaces').sort({ nirfRanking: 1 }).limit(limit);
   }
@@ -260,14 +221,6 @@ async function searchMongoFallback(queryText, limit) {
   return matchedColleges;
 }
 
-/**
- * RAG search: Generates query embedding, queries ChromaDB.
- * Falls back to Mongoose text/keyword search if ChromaDB is offline.
- *
- * ChromaDB is checked BEFORE computing an embedding: the first embedding call
- * downloads a large ONNX model, so it must never run when the vector store is
- * unreachable (which would hang the chat request for minutes).
- */
 export async function searchVectorDb(queryText, limit = 5) {
   const colId = await getCollectionId();
 
@@ -291,7 +244,6 @@ export async function searchVectorDb(queryText, limit = 5) {
     const collegeIds = queryRes.data.ids[0] || [];
     if (collegeIds.length === 0) return [];
 
-    // Retrieve from MongoDB keeping ChromaDB similarity order and populating nearby places
     const colleges = await College.find({ _id: { $in: collegeIds } }).populate('nearbyPlaces');
     const orderMap = {};
     collegeIds.forEach((id, index) => {

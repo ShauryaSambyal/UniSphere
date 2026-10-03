@@ -5,7 +5,6 @@ import path from 'path';
 import './config/env.js';
 import { fileURLToPath } from 'url';
 
-// Route imports
 import authRoutes from './routes/authRoutes.js';
 import collegeRoutes from './routes/collegeRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
@@ -18,23 +17,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-// `Number(...) || 5000` also guards against an inherited PORT=0 or a malformed
-// value, which would otherwise make the API listen on a random port while the
-// client proxy keeps pointing at 5000.
+
 const PORT = Number(process.env.PORT) || 5000;
 
-// ────────────────────────────────────────────────────────────
-// CORS – allow localhost in dev + all URLs listed in CLIENT_URL
-//
-// CLIENT_URL can be a single URL or a comma-separated list:
-//   e.g. https://unisphere.vercel.app,https://unisphere-malg.onrender.com
-//
-// Set this in your Render dashboard under Environment Variables.
-// ────────────────────────────────────────────────────────────
 const allowedOrigins = [
-  'http://localhost:5173',  // Vite dev server
-  'http://localhost:3000',  // alternate dev port
-  // Support comma-separated list of production origins
+  'http://localhost:5173',
+  'http://localhost:3000',
+
   ...(process.env.CLIENT_URL
     ? process.env.CLIENT_URL.split(',').map(u => u.trim()).filter(Boolean)
     : []),
@@ -42,12 +31,12 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (Postman, server-to-server, curl)
+
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    // Allow any Vercel preview deployment (*.vercel.app)
+
     if (/^https:\/\/[a-z0-9-]+-[a-z0-9-]+\.vercel\.app$/.test(origin)) {
       return callback(null, true);
     }
@@ -61,12 +50,8 @@ app.use(cors({
 
 app.use(express.json());
 
-// Serve uploads static folder
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ────────────────────────────────────────────────────────────
-// Health-check endpoints (Render uses these to verify server)
-// ────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'UniSphere API is running 🚀' });
 });
@@ -75,7 +60,6 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
-// Routes mount
 app.use('/api/auth', authRoutes);
 app.use('/api/colleges', collegeRoutes);
 app.use('/api/chat', chatRoutes);
@@ -83,7 +67,6 @@ app.use('/api/embeddings', embeddingRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/generate-summary', summaryRoutes);
 
-// Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.stack);
   res.status(500).json({
@@ -92,7 +75,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Database connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/college-platform';
 
 mongoose.connect(MONGODB_URI)
@@ -101,8 +83,7 @@ mongoose.connect(MONGODB_URI)
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`🌍 Allowed CORS origins: ${allowedOrigins.join(', ')}`);
-      // Load the embedding model in the background when ChromaDB is up, so the
-      // first chat query never has to wait on the one-time model download.
+
       warmUpEmbeddingPipeline().catch(() => {});
     });
   })

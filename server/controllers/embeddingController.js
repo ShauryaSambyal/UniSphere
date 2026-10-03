@@ -2,14 +2,10 @@ import College from '../models/College.js';
 import { syncCollegeToVectorDb } from '../services/chromaService.js';
 import { syncCollegeToSearch } from '../services/searchService.js';
 
-/**
- * Re-indexes all colleges.
- * Generates embeddings, syncs to ChromaDB, and syncs to Meilisearch.
- */
 export async function generateAllEmbeddings(req, res) {
   try {
     const colleges = await College.find({});
-    
+
     if (colleges.length === 0) {
       return res.status(200).json({
         message: 'No colleges found in database to generate embeddings for.',

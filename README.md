@@ -123,7 +123,7 @@ VITE_FIREBASE_APP_ID=your-app-id
 
 ### Enabling Google Sign-in (Firebase)
 
-Google is the only sign-in method in the UI. Until the six `VITE_FIREBASE_*` values are present, the sign-in modal shows a setup checklist instead of a button, so nothing fails silently.
+Google is the only sign-in method in the UI.
 
 1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
 2. **Authentication → Sign-in method**: enable **Google**.
@@ -135,6 +135,14 @@ Google is the only sign-in method in the UI. Until the six `VITE_FIREBASE_*` val
 Successful Firebase sign-ins are mirrored into MongoDB (the `User` document gains a `firebaseUid`) and exchanged for the app's JWT via `POST /api/auth/firebase`, so protected/admin routes keep working. Firebase ID tokens are verified server-side against Google's rotating public certificates — no service-account key required.
 
 The seeded email/password accounts still exist in the database and continue to work through `POST /api/auth/login` (handy for API testing with `curl`), but they are no longer reachable from the UI.
+
+### Why sign-in works on a host with no build environment variables
+
+`client/.env` is git-ignored, so a host that only runs `npm run build` has no `VITE_FIREBASE_*` values. Vite inlines environment variables at build time, which used to leave the deployed bundle with empty keys and the sign-in modal stuck on its setup checklist.
+
+`client/src/services/firebase.js` now carries the project's own public Firebase web config as a bundled fallback (Firebase web config is public by design — the API key is not a secret), and `client/src/services/api.js` falls back to the deployed Render API origin in production builds. `server/controllers/authController.js` defaults `FIREBASE_PROJECT_ID` to the same project. The result: Google sign-in works even when the host has no environment variables configured at all.
+
+To point a deployment at a different Firebase project, set the `VITE_FIREBASE_*` variables in the host's build settings (they override the bundled values) and set `FIREBASE_PROJECT_ID` on the API service. **Authorized domains still matter:** add the deployed client's domain under **Authentication → Settings → Authorized domains** in Firebase, or Google will refuse the popup with `auth/unauthorized-domain`.
 
 ---
 

@@ -291,13 +291,11 @@ async function seed() {
     await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB.');
 
-    // Clear collections
     console.log('Clearing existing collections...');
     await College.deleteMany({});
     await Review.deleteMany({});
     await User.deleteMany({});
 
-    // Create an Admin user and a student user for testing
     console.log('Seeding demo accounts...');
     const adminUser = await User.create({
       name: 'Platform Admin',
@@ -317,7 +315,6 @@ async function seed() {
     console.log('- Admin: admin@college.com (password: adminpassword123)');
     console.log('- Student: rahul@student.com (password: studentpassword123)');
 
-    // ── Colleges: curated flagship profiles + live open datasets ───────────
     console.log('Loading colleges from open datasets (Hugging Face + UGC)…');
     let openDataColleges = [];
     let datasetMeta = null;
@@ -340,12 +337,9 @@ async function seed() {
       }
     }
 
-    // Curated profiles carry hand-verified fees/placement figures, so they are
-    // tagged separately from the open-data rows.
     const curatedColleges = mockColleges.map(college => ({
       ...college,
-      // Keep the legacy top-level field and ranking.nirf in sync — the UI reads
-      // both depending on the page.
+
       nirfRanking: college.nirfRanking ?? 999,
       ranking: { nirf: college.nirfRanking ?? null, stateRank: null },
       sourceKey: `curated:${slugify(college.name)}`,
@@ -357,11 +351,6 @@ async function seed() {
       syncedAt: new Date()
     }));
 
-    // Skip open-data rows that duplicate a curated profile (comparing on a
-    // normalized key so "R.V. College of Engineering" matches "RV College of
-    // Engineering"). Open-data rows are otherwise kept as-is: they were already
-    // deduplicated by name *and state*, so two same-named colleges in different
-    // states both survive.
     const curatedNames = new Set(curatedColleges.map(c => normalizeName(c.name)));
     const seenSourceKeys = new Set(curatedColleges.map(c => c.sourceKey));
 
@@ -375,9 +364,6 @@ async function seed() {
 
     const collegesToSeed = [...curatedColleges, ...uniqueOpenDataColleges];
 
-    // Overlay the committed NIRF snapshot (rankings + DCS placement dossiers).
-    // Curated profiles are enriched too — an official rank and median salary
-    // beats a hand-typed figure whenever NIRF has the institute.
     const nirfSnapshot = await readNirfSnapshot();
     if (nirfSnapshot) {
       const outcome = applyNirfSnapshot(collegesToSeed, nirfSnapshot);
@@ -394,18 +380,16 @@ async function seed() {
     for (let index = 0; index < collegesToSeed.length; index += chunkSize) {
       const chunk = collegesToSeed.slice(index, index + chunkSize);
       try {
-        // ordered:false keeps the rest of the chunk going if one row collides.
+
         await College.insertMany(chunk, { ordered: false });
       } catch (error) {
         console.warn(`Some rows in a batch were skipped: ${error.message}`);
       }
     }
 
-    // Re-read so the index syncs below operate on exactly what was stored.
     const savedColleges = await College.find({});
     console.log(`Successfully seeded ${savedColleges.length} colleges.`);
 
-    // Seed some reviews for Colleges
     console.log('Seeding reviews...');
     const rvCollege = savedColleges.find(c => c.shortName === 'RVCE');
     if (rvCollege && studentUser) {
@@ -435,13 +419,10 @@ async function seed() {
       await iitBombay.save();
     }
 
-    // Synchronize to search and vector indexes
     console.log('Synchronizing indexes...');
     let chromaCount = 0;
     let searchCount = 0;
 
-    // Bulk sync to Algolia Search. The index is cleared first so records from
-    // earlier seeds cannot survive as orphaned hits.
     console.log('Rebuilding the Algolia search index...');
     await clearSearchIndex();
     const searchSynced = await syncAllCollegesToSearch(savedColleges);
@@ -449,7 +430,6 @@ async function seed() {
       searchCount = savedColleges.length;
     }
 
-    // Heartbeat check for ChromaDB before syncing to save massive amount of time if offline
     let chromaOnline = false;
     try {
       const host = process.env.CHROMADB_HOST || 'http://localhost:8000';
@@ -459,8 +439,6 @@ async function seed() {
       chromaOnline = false;
     }
 
-    // Only rows with real narrative content (summary/courses) are worth
-    // embedding; raw directory rows would just burn an embedding per record.
     const vectorCandidates = savedColleges.filter(
       college => college.aiSummary || (college.courses && college.courses.length > 0)
     );
@@ -491,7 +469,7 @@ async function seed() {
     console.log(`- Seeded ${savedColleges.length} colleges.`);
     console.log(`- Synced ${chromaCount}/${savedColleges.length} to ChromaDB vector store.`);
     console.log(`- Synced ${searchCount}/${savedColleges.length} to Algolia search index.`);
-    
+
     process.exit(0);
   } catch (error) {
     console.error('Seeding process failed:', error);

@@ -9,7 +9,7 @@ const rankingSchema = new mongoose.Schema({
   },
   nirf: { type: Number },
   stateRank: { type: Number },
-  category: { type: String }, // e.g. "Engineering", "Overall"
+  category: { type: String },
   year: { type: Number },
   createdAt: { type: Date, default: Date.now }
 });

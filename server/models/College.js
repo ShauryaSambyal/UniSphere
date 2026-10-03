@@ -1,7 +1,5 @@
 import mongoose from 'mongoose';
 
-// Sub-schemas for NIRF data (MoE rankings + Data Submitted by Institution
-// dossiers). Kept explicit so Mongoose persists every field the sync writes.
 const nirfRankSchema = new mongoose.Schema(
   {
     category: { type: String },
@@ -47,8 +45,8 @@ const nirfPlacementsSchema = new mongoose.Schema(
     year: { type: Number },
     placed: { type: Number },
     graduates: { type: Number },
-    placementRate: { type: Number }, // percent, one decimal
-    medianSalary: { type: Number }, // rupees per annum (primary programme)
+    placementRate: { type: Number },
+    medianSalary: { type: Number },
     higherStudies: { type: Number },
     students: { type: Number },
     primaryLevel: { type: String },
@@ -81,9 +79,6 @@ const collegeSchema = new mongoose.Schema({
   aicteId: { type: String, unique: true, sparse: true, index: true },
   permanentId: { type: String, unique: true, sparse: true, index: true },
 
-  // Provenance for records imported from an open dataset. sourceKey is the
-  // stable upsert key (e.g. "ugc:university-of-hyderabad") so a refresh updates
-  // the same document instead of duplicating it.
   sourceKey: { type: String, unique: true, sparse: true, index: true },
   source: {
     id: { type: String },
@@ -95,10 +90,10 @@ const collegeSchema = new mongoose.Schema({
 
   name: { type: String, required: true, trim: true, index: true },
   shortName: { type: String, trim: true },
-  instituteType: { type: String }, // e.g., Private, Government, Autonomous
+  instituteType: { type: String },
   womenOnly: { type: Boolean, default: false },
   hostelAvailable: { type: Boolean, default: false },
-  
+
   location: {
     address: { type: String },
     district: { type: String },
@@ -108,9 +103,6 @@ const collegeSchema = new mongoose.Schema({
     longitude: { type: Number }
   },
 
-  // Kept in sync with ranking.nirf. The whole app (sorting, cards, the admin
-  // form) reads this field, so it has to exist in the schema or Mongoose
-  // silently strips it on save.
   nirfRanking: { type: Number, index: true },
 
   ranking: {
@@ -124,14 +116,9 @@ const collegeSchema = new mongoose.Schema({
     highestPackage: { type: String },
     placementPercentage: { type: String },
 
-    // Real figures from the NIRF "Data Submitted by Institution" dossier:
-    // graduates, placed, median salary of placed graduates and higher studies,
-    // per programme level, latest reported academic year.
     nirf: { type: nirfPlacementsSchema, default: undefined }
   },
 
-  // NIRF ranking appearances (exact ranks) plus rank-band membership
-  // (101-150, 151-200, 201-300) the directory can display honestly.
   nirf: {
     year: { type: Number },
     ranks: { type: [nirfRankSchema], default: undefined },
@@ -164,27 +151,23 @@ const collegeSchema = new mongoose.Schema({
     details: { type: String }
   },
 
-  // Broad streams ("Engineering and Technology", "Management") — what the
-  // course filters and the match maker operate on.
   courses: [{ type: String }],
-  // Detailed specialisations ("Computer Science and Engineering") shown on the
-  // college page and used for fine-grained course matching.
+
   programmes: [{ type: String }],
   facilities: [{ type: String }],
 
-  // Extra facts that the open datasets do provide.
   website: { type: String },
   foundedYear: { type: Number },
   studentCount: { type: Number },
   affiliatedTo: { type: String },
-  
+
   nearbyPlaces: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'NearbyPlace'
   }],
-  
+
   aiSummary: { type: String },
-  
+
   reviews: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Review'
@@ -193,9 +176,8 @@ const collegeSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-// Compound index for geolocation search
 collegeSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
-collegeSchema.index({ name: 'text', shortName: 'text' }); // Added text index for fuzzy search
+collegeSchema.index({ name: 'text', shortName: 'text' });
 
 const College = mongoose.model('College', collegeSchema);
 export default College;

@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 
-// Shown until the API answers (and as an offline fallback) so the dropdowns
-// are never empty on first paint.
 const FALLBACK_OPTIONS = {
   states: ['Karnataka', 'Maharashtra', 'Uttar Pradesh'],
   cities: ['Bangalore', 'Mumbai'],
@@ -20,11 +18,6 @@ const FALLBACK_OPTIONS = {
   ]
 };
 
-/**
- * Loads every state / city / course that actually exists in the college
- * database, so the dropdowns offer more than the handful of hardcoded options
- * (and grow automatically as colleges are imported).
- */
 export default function useCollegeFilters() {
   const [options, setOptions] = useState(FALLBACK_OPTIONS);
 

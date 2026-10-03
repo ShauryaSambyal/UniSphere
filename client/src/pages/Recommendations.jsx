@@ -9,7 +9,7 @@ import { locationLabel, prettyLabel, nirfLabel } from '../lib/format';
 import { EASE, fadeUp } from '../lib/motion';
 
 export default function Recommendations() {
-  // Input states
+
   const [state, setState] = useState('');
   const [course, setCourse] = useState('');
   const [budget, setBudget] = useState('');
@@ -20,7 +20,6 @@ export default function Recommendations() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
 
-  // Every state / city / course present in the database (with an offline fallback).
   const { states, cities, courses } = useCollegeFilters();
 
   const budgets = [
@@ -61,7 +60,7 @@ export default function Recommendations() {
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
       className="mx-auto max-w-5xl space-y-10 px-4 py-10 sm:px-6 lg:px-8"
     >
-      {/* Header */}
+      {}
       <motion.div {...fadeUp(0)} className="border-b border-line pb-8">
         <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Match maker</span>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-0.02em] text-foreground">
@@ -72,10 +71,10 @@ export default function Recommendations() {
         </p>
       </motion.div>
 
-      {/* Input Form card */}
+      {}
       <motion.div {...fadeUp(0.05)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
         <form onSubmit={handleMatch} className="grid gap-6 md:grid-cols-2">
-          {/* State */}
+          {}
           <div>
             <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">State preference</label>
             <Dropdown
@@ -87,7 +86,7 @@ export default function Recommendations() {
             />
           </div>
 
-          {/* Preferred City */}
+          {}
           <div>
             <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">Preferred city</label>
             <Dropdown
@@ -99,7 +98,7 @@ export default function Recommendations() {
             />
           </div>
 
-          {/* Preferred Course */}
+          {}
           <div>
             <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">Desired stream / course</label>
             <Dropdown
@@ -111,7 +110,7 @@ export default function Recommendations() {
             />
           </div>
 
-          {/* Budget */}
+          {}
           <div>
             <label className="block text-[11px] font-medium uppercase tracking-wider text-faint">Tuition budget limit</label>
             <Dropdown
@@ -145,7 +144,7 @@ export default function Recommendations() {
         </form>
       </motion.div>
 
-      {/* Results Section */}
+      {}
       <div className="space-y-6">
         {loading ? (
           <div className="space-y-4">

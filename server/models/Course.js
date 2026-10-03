@@ -8,10 +8,10 @@ const courseSchema = new mongoose.Schema({
     index: true
   },
   name: { type: String, required: true },
-  level: { type: String }, // e.g. "UG", "PG", "Diploma"
-  duration: { type: String }, // e.g. "4 Years"
+  level: { type: String },
+  duration: { type: String },
   intake: { type: Number },
-  category: { type: String }, // e.g. "Engineering", "Management"
+  category: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 

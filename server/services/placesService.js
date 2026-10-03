@@ -12,7 +12,6 @@ if (apiKey) {
   }
 }
 
-// Mock descriptions for realistic facilities based on college location and facility type
 const mockPlacesData = {
   restaurant: [
     { name: 'University Dine & Cafe', rating: 4.5, address: '100m from Main Gate' },
@@ -39,12 +38,6 @@ const mockPlacesData = {
   ]
 };
 
-/**
- * Fetch nearby places for a given college and place type.
- * Queries Gemini to generate highly realistic, location-specific places if API key is active.
- * @param {Object} college 
- * @param {string} type - restaurant, cafe, hospital, shopping_mall, subway_station
- */
 export async function getNearbyPlaces(college, type) {
   const latitude = college.location?.latitude || 12.9716;
   const longitude = college.location?.longitude || 77.5946;
@@ -54,7 +47,7 @@ export async function getNearbyPlaces(college, type) {
     try {
       const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const prompt = `Generate a list of 3 real or highly realistic nearby locations of type "${normalizedType}" (e.g. restaurants, cafes, transit/metro stations, malls, or hospitals depending on the type) close to "${college.name}" in "${college.location?.city || ''}, ${college.location?.state || ''}".
-      
+
 Return ONLY a valid JSON array of objects with the exact keys:
 - name: (string) The name of the place
 - address: (string) A realistic descriptive address/distance (e.g., "500m from Main Gate", "Mysore Road")
@@ -82,7 +75,6 @@ Do not include markdown code block formatting (no \`\`\`json or \`\`\`), just th
     }
   }
 
-  // Fallback to static mock data
   const list = mockPlacesData[normalizedType] || mockPlacesData.restaurant;
   return list.map((item) => ({
     name: item.name,
@@ -94,11 +86,6 @@ Do not include markdown code block formatting (no \`\`\`json or \`\`\`), just th
   }));
 }
 
-/**
- * Generates all 5 types of nearby places for a given college in a single Gemini call to prevent performance bottlenecks.
- * @param {Object} college 
- * @returns {Promise<Array<Object>>}
- */
 export async function getNearbyPlacesForAllTypes(college) {
   const latitude = college.location?.latitude || 12.9716;
   const longitude = college.location?.longitude || 77.5946;
@@ -108,7 +95,7 @@ export async function getNearbyPlacesForAllTypes(college) {
     try {
       const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const prompt = `Generate a lists of real or highly realistic nearby locations of these 5 types: "restaurant", "cafe", "hospital", "shopping_mall", "subway_station" close to "${college.name}" in "${college.location?.city || ''}, ${college.location?.state || ''}".
-      
+
 Provide exactly 2-3 realistic locations per type.
 Return ONLY a valid JSON object mapping each type key to an array of objects. Example structure:
 {
@@ -153,7 +140,6 @@ Do not include markdown code block formatting (no \`\`\`json or \`\`\`), just th
     }
   }
 
-  // Fallback to static mock data compiled across all types
   console.log(`Using mock fallback for nearby places of college: ${college.name}`);
   const allPlaces = [];
   for (const type of placeTypes) {
@@ -171,4 +157,3 @@ Do not include markdown code block formatting (no \`\`\`json or \`\`\`), just th
   }
   return allPlaces;
 }
-

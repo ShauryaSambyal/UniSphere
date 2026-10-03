@@ -7,10 +7,10 @@ const placementSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  averagePackage: { type: String }, // e.g. "12.5 LPA"
+  averagePackage: { type: String },
   medianPackage: { type: String },
-  highestPackage: { type: String }, // e.g. "45.0 LPA"
-  placementPercentage: { type: String }, // e.g. "95%"
+  highestPackage: { type: String },
+  placementPercentage: { type: String },
   year: { type: Number },
   topRecruiters: [{ type: String }],
   createdAt: { type: Date, default: Date.now }

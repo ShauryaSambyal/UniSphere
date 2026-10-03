@@ -4,15 +4,6 @@ import College from '../models/College.js';
 import { fetchOpenDatasetRecords, writeSnapshot, upsertColleges } from '../services/datasetService.js';
 import { readNirfSnapshot, applyNirfSnapshot } from '../services/nirfService.js';
 
-/**
- * Refreshes the college directory from public open datasets.
- *
- *   npm run data:sync          → download + cache the snapshot only
- *   npm run data:sync -- --save → download + upsert into MongoDB (no wipe)
- *
- * Unlike the seed script this never deletes anything: it upserts by sourceKey,
- * so it is safe to run against a live database.
- */
 async function main() {
   const shouldSave = process.argv.includes('--save');
 
@@ -20,8 +11,6 @@ async function main() {
     const payload = await fetchOpenDatasetRecords();
     const snapshotPath = await writeSnapshot(payload);
 
-    // Overlay the committed NIRF rankings + placement dossiers (if any) before
-    // writing to the database. The open-data snapshot stays source-pure.
     const nirfSnapshot = await readNirfSnapshot();
     let nirfMatched = 0;
     if (nirfSnapshot) {

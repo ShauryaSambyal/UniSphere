@@ -13,9 +13,6 @@ import {
 } from '../services/datasetService.js';
 import { readNirfSnapshot, applyNirfSnapshot } from '../services/nirfService.js';
 
-/**
- * Get all colleges with filters.
- */
 export async function getAllColleges(req, res) {
   try {
     const { city, state, course, type, limit, q } = req.query;
@@ -26,8 +23,6 @@ export async function getAllColleges(req, res) {
     if (course) filter.courses = new RegExp(escapeRegex(course), 'i');
     if (type) filter.instituteType = new RegExp(escapeRegex(type), 'i');
 
-    // Free-text directory search. Used when the autocomplete index has no match
-    // for what was typed, so a search always lands on something.
     const term = String(q || '').trim();
     if (term) {
       const regex = new RegExp(escapeRegex(term), 'i');
@@ -52,9 +47,6 @@ export async function getAllColleges(req, res) {
   }
 }
 
-/**
- * Autocomplete / Meilisearch search.
- */
 export async function searchAutocomplete(req, res) {
   try {
     const { q, limit } = req.query;
@@ -67,11 +59,6 @@ export async function searchAutocomplete(req, res) {
   }
 }
 
-/**
- * Distinct filter values for the search dropdowns (states, cities, courses).
- * Returned straight from the indexed data, so the dropdowns always reflect
- * every state / branch that actually exists in the database.
- */
 export async function getFilterOptions(req, res) {
   try {
     const [states, cities, courses] = await Promise.all([
@@ -98,11 +85,6 @@ export async function getFilterOptions(req, res) {
   }
 }
 
-/**
- * Fetch several colleges by ID in one round-trip (used by the Compare page
- * when it is opened with ?a=<id>&b=<id>). Unlike GET /:id this does not
- * trigger the lazy nearby-places fetch, so it stays fast.
- */
 export async function getCollegesByIds(req, res) {
   try {
     const ids = String(req.query.ids || '')
@@ -115,7 +97,6 @@ export async function getCollegesByIds(req, res) {
 
     const colleges = await College.find({ _id: { $in: ids } }).populate('nearbyPlaces');
 
-    // Preserve the requested order
     const order = new Map(ids.map((id, index) => [id, index]));
     colleges.sort((a, b) => order.get(a._id.toString()) - order.get(b._id.toString()));
 
@@ -126,17 +107,9 @@ export async function getCollegesByIds(req, res) {
   }
 }
 
-/**
- * Nearby places can only be meaningful when we know where the campus actually
- * is — without coordinates the generator would invent places for the wrong
- * city (it falls back to a default location).
- */
 const hasCoordinates = (college) =>
   Number.isFinite(college?.location?.latitude) && Number.isFinite(college?.location?.longitude);
 
-/**
- * Resolves nearby places without blocking the response.
- */
 async function loadNearbyPlacesInBackground(college) {
   try {
     const allNearby = await getNearbyPlacesForAllTypes(college);
@@ -154,9 +127,6 @@ async function loadNearbyPlacesInBackground(college) {
   }
 }
 
-/**
- * Get detailed college by ID (including nearby places from Google Places API).
- */
 export async function getCollegeById(req, res) {
   try {
     const { id } = req.params;
@@ -171,9 +141,6 @@ export async function getCollegeById(req, res) {
       return res.status(404).json({ message: 'College not found' });
     }
 
-    // Nearby places depend on an external model call, so they are resolved in
-    // the background: opening a college must never wait on them. Colleges with
-    // no coordinates are skipped entirely rather than given invented places.
     if ((!college.nearbyPlaces || college.nearbyPlaces.length === 0) && hasCoordinates(college)) {
       loadNearbyPlacesInBackground(college);
     }
@@ -185,16 +152,12 @@ export async function getCollegeById(req, res) {
   }
 }
 
-/**
- * Add a new college.
- */
 export async function createCollege(req, res) {
   try {
     const data = req.body;
     const college = new College(data);
     await college.save();
 
-    // Sync to search index & ChromaDB asynchronously
     syncCollegeToSearch(college).catch(console.error);
     syncCollegeToVectorDb(college).catch(console.error);
 
@@ -205,9 +168,6 @@ export async function createCollege(req, res) {
   }
 }
 
-/**
- * Edit a college.
- */
 export async function updateCollege(req, res) {
   try {
     const { id } = req.params;
@@ -218,7 +178,6 @@ export async function updateCollege(req, res) {
       return res.status(404).json({ message: 'College not found' });
     }
 
-    // Re-sync to search index & ChromaDB asynchronously
     syncCollegeToSearch(college).catch(console.error);
     syncCollegeToVectorDb(college).catch(console.error);
 
@@ -229,9 +188,6 @@ export async function updateCollege(req, res) {
   }
 }
 
-/**
- * Delete college.
- */
 export async function deleteCollege(req, res) {
   try {
     const { id } = req.params;
@@ -241,7 +197,6 @@ export async function deleteCollege(req, res) {
       return res.status(404).json({ message: 'College not found' });
     }
 
-    // Delete from indexes asynchronously
     deleteCollegeFromSearch(id).catch(console.error);
     deleteCollegeFromVectorDb(id).catch(console.error);
 
@@ -252,9 +207,6 @@ export async function deleteCollege(req, res) {
   }
 }
 
-/**
- * Generate AI Summary for college.
- */
 export async function triggerAiSummary(req, res) {
   try {
     const { id } = req.params;
@@ -268,7 +220,6 @@ export async function triggerAiSummary(req, res) {
     college.aiSummary = summary;
     await college.save();
 
-    // Re-sync vectors because the document content changed (has AI Summary now)
     syncCollegeToVectorDb(college).catch(console.error);
 
     return res.json({ message: 'Summary generated successfully', summary });
@@ -278,10 +229,6 @@ export async function triggerAiSummary(req, res) {
   }
 }
 
-/**
- * Bulk import colleges.
- * Accept: { "college_name": "", "address": "", "district": "" }
- */
 export async function importColleges(req, res) {
   try {
     const items = Array.isArray(req.body) ? req.body : [req.body];
@@ -296,7 +243,6 @@ export async function importColleges(req, res) {
 
       if (!name) continue;
 
-      // Deduplicate by name
       let college = await College.findOne({ name });
       if (!college) {
         college = new College({
@@ -337,11 +283,10 @@ export async function importColleges(req, res) {
         });
 
         await college.save();
-        
-        // Sync to search index and Vector DB
+
         syncCollegeToSearch(college).catch(console.error);
         syncCollegeToVectorDb(college).catch(console.error);
-        
+
         createdColleges.push(college);
       }
     }
@@ -356,9 +301,6 @@ export async function importColleges(req, res) {
   }
 }
 
-// Degree / filler words that add no signal when matching a course name. This
-// lets "Computer Science Engineering" match "Computer Science", "B.Tech in
-// Computer Science & Engineering", and so on.
 const COURSE_STOPWORDS = new Set([
   'engineering', 'engineer', 'bachelor', 'bachelors', 'master', 'masters',
   'btech', 'mtech', 'integrated', 'degree', 'honours', 'honors', 'science',
@@ -374,7 +316,6 @@ const courseTokens = (text) =>
     .split(' ')
     .filter(token => token.length >= 2 && !COURSE_STOPWORDS.has(token));
 
-/** Parses "3.5 Lakh / Year", "1.6 CR / Year" or a raw number into rupees. */
 const parseMoney = (value) => {
   if (value == null) return 0;
   if (typeof value === 'number') return value;
@@ -393,21 +334,15 @@ const parseMoney = (value) => {
 const collegeRank = (college) =>
   college.nirfRanking || college.ranking?.nirf || 9999;
 
-/**
- * Score a single college against the preferences.
- * Returns a numeric score plus the fraction of course tokens that matched.
- */
 const scoreCollege = (college, { budget, preferredCity, wantedTokens }) => {
   let score = 0;
 
-  // 1. NIRF ranking (lower is better)
   const rank = collegeRank(college);
   if (rank < 50) score += 60;
   else if (rank < 100) score += 40;
   else if (rank < 200) score += 20;
   else score += 5;
 
-  // 2. Average placement package
   const pkgMatch = String(college.placements?.averagePackage || '').match(/([\d.]+)\s*LPA/i);
   if (pkgMatch) {
     const pkgVal = parseFloat(pkgMatch[1]);
@@ -417,24 +352,19 @@ const scoreCollege = (college, { budget, preferredCity, wantedTokens }) => {
     else score += 10;
   }
 
-  // 3. Tuition budget
   if (budget) {
     const tuitionVal = parseMoney(college.fees?.tuition || college.fees?.tuitionFee);
     const budgetVal = parseMoney(budget);
     if (tuitionVal > 0 && budgetVal > 0) {
-      if (tuitionVal <= budgetVal) score += 30; // fits within budget
-      else if (tuitionVal <= budgetVal * 1.25) score += 15; // slightly over
+      if (tuitionVal <= budgetVal) score += 30;
+      else if (tuitionVal <= budgetVal * 1.25) score += 15;
     }
   }
 
-  // 4. Preferred city
   if (preferredCity && college.location?.city?.toLowerCase() === preferredCity.toLowerCase()) {
     score += 25;
   }
 
-  // 5. Course / branch relevance (token overlap keeps this forgiving). Broad
-  // streams and detailed specialisations both count, so "Computer Science"
-  // matches an institution that teaches it as a branch.
   let courseRatio = 0;
   if (wantedTokens.length > 0) {
     const offered = new Set(
@@ -448,22 +378,12 @@ const scoreCollege = (college, { budget, preferredCity, wantedTokens }) => {
   return { college, score, courseRatio };
 };
 
-/**
- * Recommendations Engine.
- * Input: { state, course, budget, preferredCity }
- *
- * Matching is intentionally forgiving: a state/course combination that has no
- * exact rows must still return useful suggestions (ranked by relevance)
- * instead of an empty list.
- */
 export async function getRecommendations(req, res) {
   try {
     const { state, course, budget, preferredCity } = req.body || {};
     const wantedTokens = courseTokens(course);
     const prefs = { budget, preferredCity, wantedTokens };
 
-    // Prefer colleges inside the requested state, but never let that filter
-    // produce an empty result set.
     let colleges = state
       ? await College.find({ 'location.state': new RegExp(escapeRegex(state), 'i') })
       : await College.find({});
@@ -474,15 +394,11 @@ export async function getRecommendations(req, res) {
 
     let scored = colleges.map(college => scoreCollege(college, prefs));
 
-    // If the state-scoped colleges don't offer the requested course at all,
-    // widen to every college so the branch preference still gets honoured.
     if (state && wantedTokens.length > 0 && !scored.some(s => s.courseRatio > 0)) {
       colleges = await College.find({});
       scored = colleges.map(college => scoreCollege(college, prefs));
     }
 
-    // Keep only course-relevant matches when we have them, otherwise rank
-    // everything (always non-empty when the database has colleges).
     const courseMatches = scored.filter(s => s.courseRatio > 0);
     const pool = courseMatches.length > 0 ? courseMatches : scored;
 
@@ -498,10 +414,6 @@ export async function getRecommendations(req, res) {
   }
 }
 
-/**
- * Describes where the directory data comes from: which open datasets were
- * ingested, how many colleges each contributed, and when it last ran.
- */
 export async function getDatasetInfo(req, res) {
   try {
     const [total, curated, lastSynced, sources, snapshot, nirfSnapshot] = await Promise.all([
@@ -558,17 +470,11 @@ export async function getDatasetInfo(req, res) {
   }
 }
 
-/**
- * Re-downloads every open dataset and upserts the result. This is what keeps
- * the directory current without wiping admin edits.
- */
 export async function refreshDataset(req, res) {
   try {
     const payload = await fetchOpenDatasetRecords();
     await writeSnapshot(payload);
 
-    // Overlay NIRF rankings/placements from the committed snapshot. This only
-    // reads files — no scraping happens inside the API request.
     const nirfSnapshot = await readNirfSnapshot();
     const nirfMatched = nirfSnapshot ? applyNirfSnapshot(payload.colleges, nirfSnapshot).matched : 0;
 
@@ -590,9 +496,6 @@ export async function refreshDataset(req, res) {
   }
 }
 
-/**
- * Fetch Stats for Admin Dashboard.
- */
 export async function getDashboardStats(req, res) {
   try {
     const totalColleges = await College.countDocuments({});
@@ -605,7 +508,7 @@ export async function getDashboardStats(req, res) {
     return res.json({
       totalColleges,
       totalReviews,
-      totalQueries: totalReviews * 3 + totalColleges, // proxy for interactions
+      totalQueries: totalReviews * 3 + totalColleges,
       topColleges
     });
   } catch (error) {

@@ -11,15 +11,12 @@ const labelClass = 'block text-[11px] font-medium uppercase tracking-wider text-
 export default function Admin() {
   const { isAdmin } = useAuth();
 
-  // Dashboard stats
   const [stats, setStats] = useState({ totalColleges: 0, totalReviews: 0, totalQueries: 0, topColleges: [] });
   const [colleges, setColleges] = useState([]);
 
-  // Form controls
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCollege, setEditingCollege] = useState(null);
 
-  // Form inputs state
   const [formData, setFormData] = useState({
     name: '',
     shortName: '',
@@ -41,7 +38,6 @@ export default function Admin() {
   const [dataset, setDataset] = useState(null);
   const [refreshingData, setRefreshingData] = useState(false);
 
-  // Fetch admin dashboard info
   const loadDashboardData = async () => {
     try {
       const statsRes = await api.get('/colleges/stats');
@@ -54,7 +50,6 @@ export default function Admin() {
     }
   };
 
-  // Which open datasets the directory was built from, and when they last synced.
   const loadDatasetInfo = async () => {
     try {
       const res = await api.get('/colleges/dataset');
@@ -64,7 +59,6 @@ export default function Admin() {
     }
   };
 
-  // Re-downloads the public datasets and upserts them (never wipes).
   const handleRefreshData = async () => {
     setRefreshingData(true);
     setUiSuccess('');
@@ -105,7 +99,6 @@ export default function Admin() {
     );
   }
 
-  // Populate edit fields
   const handleStartEdit = (college) => {
     setEditingCollege(college);
     setFormData({
@@ -144,7 +137,6 @@ export default function Admin() {
     setIsModalOpen(true);
   };
 
-  // Submit college form (Create / Edit)
   const handleSubmitForm = async (e) => {
     e.preventDefault();
     setUiError('');
@@ -171,7 +163,6 @@ export default function Admin() {
     }
   };
 
-  // Delete college handler
   const handleDelete = async (id, name) => {
     if (window.confirm(`Are you sure you want to delete ${name}? This will remove it from MongoDB, Algolia, and ChromaDB.`)) {
       try {
@@ -184,7 +175,6 @@ export default function Admin() {
     }
   };
 
-  // Trigger AI summary generation
   const handleGenerateSummary = async (id) => {
     setUiSuccess('');
     setUiError('');
@@ -197,7 +187,6 @@ export default function Admin() {
     }
   };
 
-  // Rebuild ChromaDB embeddings
   const handleRebuildEmbeddings = async () => {
     setSyncingVectors(true);
     setUiSuccess('');
@@ -214,7 +203,7 @@ export default function Admin() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6 lg:px-8">
-      {/* Page Title & actions */}
+      {}
       <div className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="text-[11px] font-medium uppercase tracking-wider text-faint">Control panel</span>
@@ -242,11 +231,11 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Toast logs */}
+      {}
       {uiError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm font-normal text-red-600">{uiError}</div>}
       {uiSuccess && <div className="rounded-xl border border-line bg-subtle p-4 text-sm font-normal text-foreground">{uiSuccess}</div>}
 
-      {/* Stats Grid */}
+      {}
       <div className="grid gap-4 sm:grid-cols-3">
         {[
           { icon: Layers, label: 'Total colleges', value: stats.totalColleges },
@@ -267,7 +256,7 @@ export default function Admin() {
         ))}
       </div>
 
-      {/* Open-data provenance */}
+      {}
       <div className="rounded-2xl border border-line bg-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -309,7 +298,7 @@ export default function Admin() {
         )}
       </div>
 
-      {/* Colleges Management List */}
+      {}
       <div className="overflow-hidden rounded-2xl border border-line bg-card">
         <div className="border-b border-line p-4">
           <h3 className="text-[11px] font-medium uppercase tracking-wider text-faint">Indexed colleges</h3>
@@ -375,13 +364,13 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Dynamic Form Modal */}
+      {}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
-          {/* Backdrop */}
+          {}
           <div onClick={() => setIsModalOpen(false)} className="fixed inset-0 bg-foreground/40 backdrop-blur-sm" />
 
-          {/* Form Card */}
+          {}
           <div className="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-line bg-card-elevated p-8 shadow-[0_32px_80px_-24px_rgba(26,26,26,0.24)]">
             <div className="mb-6 flex items-center justify-between">
               <h3 className="text-lg font-semibold tracking-[-0.01em] text-foreground">
@@ -397,7 +386,7 @@ export default function Admin() {
             </div>
 
             <form onSubmit={handleSubmitForm} className="space-y-5 text-xs">
-              {/* Row 1: Name & Short Name */}
+              {}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
                   <label className={labelClass}>College name</label>
@@ -421,7 +410,7 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* Row 2: Type, Ranking, Campus size */}
+              {}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className={labelClass}>NIRF ranking</label>
@@ -456,7 +445,7 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* Row 3: Location */}
+              {}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-3">
                   <label className={labelClass}>Address</label>
@@ -551,7 +540,7 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* Row 4: Fees & Placements */}
+              {}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3 rounded-xl border border-line p-4">
                   <h4 className="text-[11px] font-medium uppercase tracking-wider text-faint">Fees schedule</h4>
@@ -614,7 +603,7 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* Row 5: Lists (Courses, Facilities) */}
+              {}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className={labelClass}>Courses offered (comma separated)</label>

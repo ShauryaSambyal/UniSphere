@@ -1,17 +1,4 @@
-/**
- * MongoDB connectivity diagnostic.
- *
- *   npm run db:check
- *
- * Mongoose reports every server-selection failure with the same generic hint
- * ("one common reason is you're trying to access the database from an IP that
- * isn't whitelisted"), which hides the real cause. This walks the connection
- * layer by layer — DNS, TCP, TLS, then the driver handshake — and prints the
- * actual error at the stage where it fails, so you can tell a firewall apart
- * from bad credentials.
- *
- * The password is never printed.
- */
+
 import dns from 'dns/promises';
 import net from 'net';
 import tls from 'tls';
@@ -68,7 +55,6 @@ function tlsProbe(host, port) {
   });
 }
 
-// ─── Stage 1: DNS ────────────────────────────────────────────────────────────
 console.log('[1/4] DNS');
 let shardTargets = [];
 try {
@@ -87,18 +73,15 @@ try {
 if (shardTargets.length > 0) {
   const { host, port } = shardTargets[0];
 
-  // ─── Stage 2: TCP ──────────────────────────────────────────────────────────
   console.log('\n[2/4] TCP to', `${host}:${port}`);
   const tcp = await tcpProbe(host, port);
   record('tcp connect', tcp.ok, tcp.detail);
 
-  // ─── Stage 3: TLS ──────────────────────────────────────────────────────────
   console.log('\n[3/4] TLS');
   const tls = await tlsProbe(host, port);
   record('tls handshake', tls.ok, tls.detail);
 }
 
-// ─── Stage 4: real driver handshake ──────────────────────────────────────────
 console.log('\n[4/4] driver handshake (this is what Mongoose does)');
 let connected = false;
 let serverErrors = [];
@@ -132,7 +115,6 @@ if (serverErrors.length) {
   for (const line of serverErrors) console.log('   -', line.slice(0, 200));
 }
 
-// ─── Diagnosis ───────────────────────────────────────────────────────────────
 console.log('\n' + '─'.repeat(72));
 if (connected) {
   console.log('RESULT: connected — the connection string works.');

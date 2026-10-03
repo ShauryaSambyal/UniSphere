@@ -21,10 +21,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  /**
-   * Exchanges a Firebase ID token for the app's own JWT (plus the database
-   * user record with its role), so every protected API keeps working.
-   */
   const syncWithBackend = async (firebaseUser) => {
     try {
       const idToken = await firebaseUser.getIdToken();
@@ -40,8 +36,6 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Restore the session on load: the app JWT first, then bridge a still-active
-  // Firebase session that does not have a backend token yet.
   useEffect(() => {
     let unsubscribe = () => {};
 
@@ -76,11 +70,6 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  /**
-   * Google is the only sign-in method. The Google identity is verified by
-   * Firebase in the browser and re-verified by the API before a session is
-   * issued, so the client never has to handle a password.
-   */
   const loginWithGoogle = async () => {
     if (!isFirebaseConfigured || !auth) {
       throw NOT_CONFIGURED_MESSAGE;
@@ -93,8 +82,6 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Google sign-in failed:', error);
 
-      // Keep Firebase and the app in sync: if the backend rejected the token,
-      // drop the half-open Firebase session instead of leaving it dangling.
       if (!error?.code) {
         signOutFirebase().catch(() => {});
       }

@@ -5,33 +5,6 @@ import { fileURLToPath } from 'url';
 import '../config/env.js';
 import { normalizeName } from './datasetService.js';
 
-/**
- * NIRF (National Institutional Ranking Framework, Ministry of Education)
- * ingestion.
- *
- * NIRF publishes, for every ranking edition:
- *
- *   1. Ranking pages — https://www.nirfindia.org/Rankings/<year>/<Category>Ranking.html
- *      Top 100 per category carry Institute ID, name, city, state, score, rank
- *      and parameter scores. Ranks 101-300 are published as alphabetical
- *      "rank-band" lists (101-150, 151-200, 201-300) with no IDs.
- *
- *   2. Data Submitted by Institution (DCS) PDFs —
- *      https://www.nirfindia.org/nirfpdfcdn/<year>/pdf/<Category>/<ID>.pdf
- *      Each contains, per programme level, sanctioned intake, student strength,
- *      placement & higher-studies tables (graduates, placed, median salary of
- *      placed graduates, higher studies) and faculty counts.
- *
- * The ministry publishes both for public consumption (no robots restrictions,
- * no key/token required). This service fetches them politely, caches raw DCS
- * parses under server/data/.nirf-cache, and writes a compact snapshot to
- * server/data/nirf.data.json that seeding and the admin refresh re-use.
- *
- * IMPORTANT — what NIRF does NOT contain: tuition fees, hostel fees or hostel
- * availability. Those are not part of any bulk government open dataset we could
- * find, so the UI states that honestly instead of inventing numbers.
- */
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -42,8 +15,6 @@ export const NIRF_CACHE_DIR = path.join(__dirname, '../data/.nirf-cache');
 const USER_AGENT =
   'UniSphere-OpenDataSync/1.0 (college directory; respects robots; contact via project repo)';
 
-// When an institute appears in several categories we only need one DCS PDF for
-// it. These categories, most student-relevant first, decide which one we fetch.
 const CATEGORY_PRIORITY = [
   'engineering',
   'university',
@@ -130,7 +101,6 @@ async function mapWithConcurrency(items, limit, worker) {
   return results;
 }
 
-/** Highest NIRF edition available on the site (probes backwards from next year). */
 export async function detectLatestYear({ log = () => {} } = {}) {
   const start = new Date().getFullYear() + 1;
   for (let year = start; year >= start - 10; year -= 1) {
@@ -141,18 +111,13 @@ export async function detectLatestYear({ log = () => {} } = {}) {
         return year;
       }
     } catch {
-      // 404 or unreachable — try the previous year.
+
     }
     await delay(150);
   }
   throw new Error('Could not find any NIRF ranking edition on nirfindia.org');
 }
 
-/**
- * Category pages linked from the edition index (Engineering, Overall, …). The
- * index links are images, so the alt text is the fallback label; the category's
- * own page carries the authoritative title ("Agriculture and Allied Sectors").
- */
 export async function discoverCategories(year) {
   const html = await fetchText(`${NIRF_SITE}/Rankings/${year}/Ranking.html`);
   const labels = new Map();
@@ -170,7 +135,6 @@ export async function discoverCategories(year) {
   return [...slugs].map((slug) => ({ slug, label: labels.get(slug) || slug }));
 }
 
-/** Parses one top-100 page: ID, name, city, state, score, rank, DCS links. */
 export function parseRankedPage(html, { category, pageUrl }) {
   const records = [];
   const idMatches = [...html.matchAll(/<td>(IR-[A-Z]-[A-Z]-\d+)<\/td>/g)];
@@ -218,7 +182,6 @@ export function parseRankedPage(html, { category, pageUrl }) {
   return records;
 }
 
-/** Parses one rank-band page ("Institution list in alphabetical order"). */
 export function parseBandPage(html, { category, band, pageUrl }) {
   const records = [];
 
@@ -246,10 +209,6 @@ export function parseBandPage(html, { category, band, pageUrl }) {
   return records;
 }
 
-/**
- * Downloads every category's ranked page plus its rank-band pages for one
- * edition and returns flat institute records (one per category appearance).
- */
 export async function fetchNirfRankings({ year, log = console.log, categories } = {}) {
   const edition = year || (await detectLatestYear({ log }));
   const cats = categories || (await discoverCategories(edition));
@@ -267,13 +226,11 @@ export async function fetchNirfRankings({ year, log = console.log, categories } 
       return [];
     }
 
-    // The page title is the precise category label ("India Rankings 2025: X").
     const title = html.match(/India Rankings \d{4}:\s*([^<]+)</i)?.[1];
     const label = decodeEntities(title) || cat.label;
 
     const ranked = parseRankedPage(html, { category: label, pageUrl });
 
-    // Follow the "Rank-band: 101-150" links the top-100 page carries.
     const bandLinks = [
       ...html.matchAll(/href="([A-Za-z0-9]+Ranking\d+)\.html"[^>]*>\s*Rank-band:\s*([\d]+\s*-\s*[\d]+)/g)
     ].map((match) => ({ slug: match[1], band: match[2].replace(/\s+/g, '') }));
@@ -300,7 +257,6 @@ export async function fetchNirfRankings({ year, log = console.log, categories } 
 
   const institutes = perCategory.flat();
 
-  // Stable ordering: category priority, then exact rank, then name.
   const priority = (category) => {
     const index = CATEGORY_PRIORITY.findIndex((prefix) =>
       String(category).toLowerCase().replace(/[^a-z]/g, '').startsWith(prefix)
@@ -318,19 +274,12 @@ export async function fetchNirfRankings({ year, log = console.log, categories } 
   return { year: edition, institutes };
 }
 
-// ── DCS PDF parsing ────────────────────────────────────────────────────────
-
 let pdfjsPromise = null;
 const loadPdfjs = () => {
   pdfjsPromise ||= import('pdfjs-dist/legacy/build/pdf.mjs');
   return pdfjsPromise;
 };
 
-/**
- * Extracts visual text lines from a PDF. NIRF DCS PDFs are rotated landscape
- * pages, so the viewport transform is applied before clustering items into
- * lines by their y coordinate.
- */
 export async function extractPdfLines(buffer) {
   const pdfjs = await loadPdfjs();
   const doc = await pdfjs.getDocument({
@@ -381,12 +330,6 @@ const PLACEMENT_HEADING = /^((?:UG|PG)\s*\[[^\]]+\])\s*:\s*Placement & higher st
 const SECTION_BREAK = /^(Ph\.?D|Financial Resources|PCS Facilities|Faculty Details|Sponsored Research|Consultancy)/i;
 const STRENGTH_HEADING = /^Total Actual Student Strength/i;
 
-/**
- * Parses a placement row such as
- *   2020-21 877 929 2021-22 0 2023-24 714 549 1750000(Seventeen 153
- * The median salary token carries a parenthetical spelled-out amount; the
- * number after "(" on the same line is the higher-studies count.
- */
 export function parsePlacementRow(line) {
   const open = line.indexOf('(');
   const head = open >= 0 ? line.slice(0, open) : line;
@@ -439,7 +382,6 @@ export function parsePlacementRow(line) {
   };
 }
 
-/** Column names, in order, of the "Total Actual Student Strength" table. */
 const STRENGTH_COLUMNS = [
   'male',
   'female',
@@ -456,11 +398,9 @@ const STRENGTH_COLUMNS = [
   'notReceivingReimbursement'
 ];
 
-/** Parses a DCS PDF into placements, student strength and faculty count. */
 export async function parseDcsPdf(buffer) {
   const rawLines = await extractPdfLines(buffer);
 
-  // "UG [4 Years" and "Program(s)]" often land on separate extracted lines.
   const lines = [];
   for (const line of rawLines) {
     if (/^Program\(s\)\]/i.test(line) && lines.length > 0) {
@@ -505,9 +445,6 @@ export async function parseDcsPdf(buffer) {
       continue;
     }
 
-    // Only the student-strength table follows a "UG/PG [n Years ...]" row with
-    // 6+ numbers; the intake table above has a different column set and is
-    // ignored entirely.
     if (section === 'strength') {
       const level = line.match(/^(UG|PG)\s*\[\s*(\d+)\s*Years?\s*(.*)$/i);
       if (level) {
@@ -547,10 +484,6 @@ export async function parseDcsPdf(buffer) {
 
 const dcsCachePath = (nirfId, cacheDir) => path.join(cacheDir, 'dcs', `${nirfId}.json`);
 
-/**
- * Fetches and parses one DCS PDF, caching the result by NIRF institute ID so
- * repeat sync runs are cheap and resumable.
- */
 export async function fetchDcsData(record, { cacheDir = NIRF_CACHE_DIR, log = () => {} } = {}) {
   if (!record?.nirfId || !record?.pdfUrl) return null;
   const cachePath = dcsCachePath(record.nirfId, cacheDir);
@@ -559,7 +492,7 @@ export async function fetchDcsData(record, { cacheDir = NIRF_CACHE_DIR, log = ()
     const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
     if (cached?.parsed) return cached.parsed;
   } catch {
-    // not cached yet
+
   }
 
   const buffer = await fetchBinary(record.pdfUrl);
@@ -583,7 +516,6 @@ export async function fetchDcsData(record, { cacheDir = NIRF_CACHE_DIR, log = ()
   return parsed;
 }
 
-/** All cached DCS parses, keyed by NIRF ID. */
 export async function readDcsCache({ cacheDir = NIRF_CACHE_DIR } = {}) {
   const dir = path.join(cacheDir, 'dcs');
   const byId = new Map();
@@ -596,25 +528,19 @@ export async function readDcsCache({ cacheDir = NIRF_CACHE_DIR } = {}) {
         const cached = JSON.parse(await fs.readFile(path.join(dir, file), 'utf8'));
         if (cached?.parsed) byId.set(cached.nirfId, cached);
       } catch {
-        // ignore corrupt cache entries
+
       }
     }
   } catch {
-    // no cache yet
+
   }
 
   return byId;
 }
 
-/** Campus key: normalized institute name + state (city as last resort). */
 export const campusKey = (record) =>
   `${normalizeName(record.name)}|${normalizeName(record.state)}|${normalizeName(record.city)}`;
 
-/**
- * Picks one DCS PDF per physical institute: records that share a name are
- * assumed to be the same campus when their state matches. Preference is given
- * to the most student-relevant category, then to the best rank.
- */
 export function dcsFetchPlan(institutes) {
   const byCampus = new Map();
 
@@ -642,23 +568,16 @@ export function dcsFetchPlan(institutes) {
   return [...byCampus.values()];
 }
 
-// ── Snapshot ───────────────────────────────────────────────────────────────
-
 const aggregateLevels = (placements) =>
   placements.map((block) => {
     const rows = [...block.rows].sort((a, b) =>
       String(a.graduatingYear).localeCompare(String(b.graduatingYear))
     );
-    // Prefer the most recent year that actually had graduates: brand-new
-    // programmes report 0/0 until their first cohort passes out.
+
     const latest = [...rows].reverse().find((row) => (row.graduating || 0) > 0) || rows[rows.length - 1] || null;
     return { level: block.level, latest };
   }).filter((entry) => entry.latest && (entry.latest.graduating || 0) > 0);
 
-/**
- * Shapes the raw DCS parse into what the UI needs: the latest year per
- * programme level plus aggregates across levels.
- */
 export function aggregatePlacements(dcs, { year, pdfUrl } = {}) {
   const levels = aggregateLevels(dcs.placements || []).filter((entry) => entry.latest);
   if (levels.length === 0) return null;
@@ -684,11 +603,6 @@ export function aggregatePlacements(dcs, { year, pdfUrl } = {}) {
   };
 }
 
-/**
- * Builds the committed snapshot from ranking records + cached DCS parses.
- * DCS blocks are stored once per campus (name+state) rather than once per
- * category appearance.
- */
 export function buildNirfSnapshot({ year, institutes, dcsById, log = console.log }) {
   const dcs = {};
   const plan = dcsFetchPlan(institutes);
@@ -746,9 +660,6 @@ export async function readNirfSnapshot() {
   }
 }
 
-// ── Matching + enrichment ──────────────────────────────────────────────────
-
-// NIRF city names vs the spellings that appear in directory addresses.
 const CITY_ALIASES = new Map([
   ['bangalore', 'bengaluru'],
   ['mysore', 'mysuru'],
@@ -774,19 +685,10 @@ const CITY_ALIASES = new Map([
   ['jullundur', 'jalandhar']
 ]);
 
-/**
- * Locality/name folding for matching:
- *   "R.V. College"       → "rv college"
- *   "B.M.S College"      → "bms college"
- *   "IIT Bombay"         → "indian institute of technology bombay"
- * Directory sources spell initials as "R.V.", "RV" or "R V"; NIRF mixes them
- * freely, so both sides are folded before comparison.
- */
 export const foldName = (value) => {
   const normalized = normalizeName(value);
   if (!normalized) return '';
 
-  // Join runs of single-letter tokens: "r v college" → "rv college".
   const joined = normalized.replace(/(?:(?:\b[a-z]\b)\s*){2,}/g, (run) => `${run.trim().replace(/\s+/g, '')} `);
 
   return joined.trim();
@@ -812,7 +714,6 @@ const ACRONYM_EXPANSIONS = new Map([
   ['iitkgp', 'indian institute of technology kharagpur']
 ]);
 
-/** Expands well-known institute acronyms so "IIT Bombay" can meet NIRF's full name. */
 export const expandAcronyms = (foldedName) => {
   const tokens = foldedName.split(' ').filter(Boolean);
   const expanded = tokens.map((token) => ACRONYM_EXPANSIONS.get(token) || token);
@@ -830,7 +731,7 @@ const cityAgrees = (a, b) => {
   const right = cityKey(b);
   if (!left || !right) return false;
   if (left === right) return true;
-  // "Bengaluru Urban" (district) should agree with "Bengaluru".
+
   const [short, long] = [left, right].sort((x, y) => x.length - y.length);
   return short.length >= 5 && long.includes(short);
 };
@@ -847,10 +748,6 @@ const bandFloor = (band) => {
   return Number.isFinite(value) ? value : null;
 };
 
-/**
- * Groups NIRF appearances into candidate campuses (same normalized name) and
- * indexes them by name for matching against directory records.
- */
 export function buildNirfIndex(snapshot) {
   const byName = new Map();
 
@@ -878,8 +775,7 @@ const candidateMatchesCollege = (college, record, nameVariants) => {
       Math.abs(variant.length - recordName.length) <= 20 &&
       cityAgrees(college.location?.city, record.city)
     ) {
-      // Prefix containment only when the locality also agrees — otherwise
-      // "Indian Institute of Technology" could swallow "…Madras".
+
       nameScore = Math.max(nameScore, 2);
     }
   }
@@ -893,16 +789,10 @@ const candidateMatchesCollege = (college, record, nameVariants) => {
   return nameScore + (city ? 4 : 0) + (state ? 2 : 0);
 };
 
-/**
- * Finds the NIRF campus (with all its category appearances + DCS dossier) that
- * belongs to a directory college. Ambiguous matches are dropped rather than
- * risking attaching the wrong institute's numbers.
- */
 export function matchCollegeToNirf(college, index) {
   const folded = foldName(college.name);
   if (!folded) return null;
 
-  // "IIT Bombay" also registers as "indian institute of technology bombay".
   const nameVariants = [...new Set([folded, expandAcronyms(folded)])];
   const extended = [];
 
@@ -910,8 +800,6 @@ export function matchCollegeToNirf(college, index) {
     extended.push(...(index.byName.get(name) || []));
   }
 
-  // Containment candidates ("Amity University" vs "Amity University, Noida") —
-  // only scanned when the shorter name is long enough to be meaningful.
   for (const name of nameVariants) {
     if (name.length < 12) continue;
     for (const [candidateName, records] of index.byName) {
@@ -942,7 +830,6 @@ export function matchCollegeToNirf(college, index) {
     .map(([key, value]) => ({ key, ...value }))
     .sort((a, b) => b.score - a.score);
 
-  // More than one campus at the top score = ambiguous, skip.
   if (ranked.length > 1 && ranked[0].score === ranked[1].score) return null;
 
   const winner = ranked[0];
@@ -955,11 +842,6 @@ export function matchCollegeToNirf(college, index) {
   };
 }
 
-/**
- * Computes the fields to store on a college from its NIRF campus. Returned as a
- * plain object so the same code serves object documents (seed) and $set
- * patches (database updates).
- */
 export function computeNirfFields(college, campus, snapshot) {
   const year = snapshot?.meta?.year || null;
   const sourceUrl = snapshot?.meta?.sourceUrl || NIRF_SITE;
@@ -1022,7 +904,6 @@ export function computeNirfFields(college, campus, snapshot) {
   return fields;
 }
 
-/** Applies NIRF fields in place to a plain college document (seed path). */
 export function applyNirfToCollege(college, campus, snapshot) {
   const fields = computeNirfFields(college, campus, snapshot);
   if (fields.nirfRanking) college.nirfRanking = fields.nirfRanking;
@@ -1035,10 +916,6 @@ export function applyNirfToCollege(college, campus, snapshot) {
   if (fields.facultyCount) college.facultyCount = fields.facultyCount;
 }
 
-/**
- * Enriches a batch of college documents from the NIRF snapshot. Used by the
- * seed, the dataset sync and the admin refresh; returns how many matched.
- */
 export function applyNirfSnapshot(colleges, snapshot) {
   if (!snapshot) return { matched: 0, total: colleges.length };
 

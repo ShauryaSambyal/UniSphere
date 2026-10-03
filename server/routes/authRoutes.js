@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.post('/register', register);
 router.post('/login', login);
-router.post('/firebase', firebaseAuth);   // exchanges a Firebase ID token for a JWT
+router.post('/firebase', firebaseAuth);
 router.get('/me', authenticateToken, getMe);
 
 export default router;

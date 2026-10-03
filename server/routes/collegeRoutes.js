@@ -19,27 +19,21 @@ import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// ─── Public GET Routes ────────────────────────────────────────────────────────
-// IMPORTANT: Static paths (/search, /stats) must come BEFORE the dynamic /:id
-// route, otherwise Express will treat "search" and "stats" as an :id value.
 router.get('/', getAllColleges);
-router.get('/search', searchAutocomplete);           // SearchBar.jsx, Compare.jsx
-router.get('/filters', getFilterOptions);            // Hero.jsx, Recommendations.jsx dropdowns
-router.get('/batch', getCollegesByIds);              // Compare.jsx (?a= & ?b= preload)
-router.get('/stats', getDashboardStats);             // Admin.jsx
-router.get('/dataset', getDatasetInfo);              // Home.jsx, Admin.jsx (provenance + freshness)
-router.get('/:id', getCollegeById);                  // CollegeDetails.jsx
+router.get('/search', searchAutocomplete);
+router.get('/filters', getFilterOptions);
+router.get('/batch', getCollegesByIds);
+router.get('/stats', getDashboardStats);
+router.get('/dataset', getDatasetInfo);
+router.get('/:id', getCollegeById);
 
-// ─── Public POST Routes ───────────────────────────────────────────────────────
-// Static POST paths must also come before dynamic /:id/* routes.
-router.post('/import', importColleges);              // (bulk import utility — no frontend UI)
-router.post('/recommendations', getRecommendations); // Recommendations.jsx
+router.post('/import', importColleges);
+router.post('/recommendations', getRecommendations);
 
-// ─── Admin-Only Routes ────────────────────────────────────────────────────────
-router.post('/', authenticateToken, requireAdmin, createCollege);              // Admin.jsx
-router.put('/:id', authenticateToken, requireAdmin, updateCollege);            // Admin.jsx
-router.delete('/:id', authenticateToken, requireAdmin, deleteCollege);         // Admin.jsx
-router.post('/:id/summary', authenticateToken, requireAdmin, triggerAiSummary); // Admin.jsx
-router.post('/refresh', authenticateToken, requireAdmin, refreshDataset);       // Admin.jsx (re-pull open datasets)
+router.post('/', authenticateToken, requireAdmin, createCollege);
+router.put('/:id', authenticateToken, requireAdmin, updateCollege);
+router.delete('/:id', authenticateToken, requireAdmin, deleteCollege);
+router.post('/:id/summary', authenticateToken, requireAdmin, triggerAiSummary);
+router.post('/refresh', authenticateToken, requireAdmin, refreshDataset);
 
 export default router;

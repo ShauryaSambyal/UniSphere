@@ -3,16 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, ChevronDown } from 'lucide-react';
 import { dropdownVariants } from '../lib/motion';
 
-/**
- * A drop-in replacement for a native <select>.
- *
- * Native <select> popups are painted by the OS, so they can't be styled and
- * always read as a grey system menu on top of the warm page. This renders the
- * list itself, so it inherits the site's ivory/ink palette and motion.
- *
- * options: array of strings, or of { value, label }
- */
-
 const DEFAULT_TRIGGER =
   'flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-line bg-card px-3.5 py-2.5 text-left text-sm text-foreground transition-colors duration-150 hover:border-line-strong';
 
@@ -36,7 +26,6 @@ export default function Dropdown({
   const selectedIndex = items.findIndex((o) => o.value === value);
   const selected = selectedIndex >= 0 ? items[selectedIndex] : null;
 
-  // Close when the pointer lands anywhere outside this control.
   useEffect(() => {
     if (!isOpen) return undefined;
     const handlePointerDown = (event) => {
@@ -48,9 +37,6 @@ export default function Dropdown({
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isOpen]);
 
-  // Opening highlights the chosen row. Seeding this in the handler (rather
-  // than an effect) keeps arrow-key navigation from being reset by a
-  // cascading re-render.
   const openPanel = () => {
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
     setIsOpen(true);

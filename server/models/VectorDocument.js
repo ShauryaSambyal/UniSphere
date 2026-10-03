@@ -12,7 +12,7 @@ const vectorDocumentSchema = new mongoose.Schema({
     required: true
   },
   embedding: {
-    type: [Number], // Array of floats
+    type: [Number],
     required: true
   },
   metadata: {

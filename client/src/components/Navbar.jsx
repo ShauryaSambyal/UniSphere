@@ -32,7 +32,7 @@ export default function Navbar() {
       <nav className="sticky top-0 z-40 w-full border-b border-line bg-background/85 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            {/* Logo */}
+            {}
             <Link to="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground">
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background">
                 <Sparkles size={15} strokeWidth={2.2} />
@@ -40,7 +40,7 @@ export default function Navbar() {
               <span>UniSphere</span>
             </Link>
 
-            {/* Desktop Navigation */}
+            {}
             <div className="hidden items-center gap-1 md:flex">
               {NAV_LINKS.map(({ to, label, icon: Icon }) => (
                 <Link key={to} to={to} className={linkClass(to)}>
@@ -70,7 +70,7 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Right Buttons */}
+            {}
             <div className="hidden items-center gap-3 md:flex">
               {isAuthenticated ? (
                 <div className="flex items-center gap-3">
@@ -97,7 +97,7 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Mobile Menu Toggle */}
+            {}
             <div className="flex items-center gap-2 md:hidden">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -110,7 +110,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Navigation Drawer */}
+        {}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
@@ -176,7 +176,7 @@ export default function Navbar() {
         </AnimatePresence>
       </nav>
 
-      {/* Auth Modal */}
+      {}
       <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
     </>
   );

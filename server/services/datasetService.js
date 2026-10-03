@@ -4,23 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import '../config/env.js';
 
-/**
- * Open-data ingestion for the college directory.
- *
- * Instead of shipping a hand-filled demo JSON file, the directory is built from
- * public datasets that are free to download and need no API key:
- *
- *   1. GitHub — UGC Indian University Dataset (976 UGC-recognised universities)
- *   2. Hugging Face — DropTheHQ/global-universities (27k universities worldwide)
- *   3. GitHub — AICTE Indian Colleges Dataset (~13k approved institutions,
- *      including engineering colleges, with their programmes and affiliation)
- *
- * `fetchOpenDatasetRecords()` re-downloads them and returns normalized College
- * documents; the admin "Refresh open data" button and `npm run data:sync` call
- * it. A cached snapshot is written to server/data/colleges.open-data.json so
- * seeding still works offline.
- */
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -47,8 +30,7 @@ export const SOURCES = [
     url: 'https://github.com/anburocky3/indian-colleges-data',
     license: 'AICTE approved-institution listing (public)',
     country: 'India',
-    // One JSON file per state/UT. Split rather than one 12 MB file so a single
-    // slow state can fail without losing the rest.
+
     files: [
       'andaman-and-nicobar-islands', 'andhra-pradesh', 'arunachal-pradesh',
       'assam', 'bihar', 'chandigarh', 'chhattisgarh', 'dadra-and-nagar-haveli',
@@ -61,8 +43,6 @@ export const SOURCES = [
   }
 ];
 
-// Every state and union territory, longest first so "Andhra Pradesh" wins over
-// a bare "Pradesh" style fragment.
 const INDIAN_STATES = [
   'Andaman and Nicobar Islands',
   'Arunachal Pradesh',
@@ -102,7 +82,6 @@ const INDIAN_STATES = [
   'Ladakh'
 ].sort((a, b) => b.length - a.length);
 
-// Words that show up in postal addresses but never name a city.
 const ADDRESS_STOPWORDS = new Set([
   'po', 'p', 'post', 'pin', 'pincode', 'dist', 'district', 'campus', 'road',
   'rd', 'via', 'city', 'university', 'college', 'nagar', 'the', 'and', 'near',
@@ -111,12 +90,10 @@ const ADDRESS_STOPWORDS = new Set([
   'state', 'po.', 'p.s', 'p.o'
 ]);
 
-// "U.P", "H.P", "T.N" — state abbreviations that trail an address.
 const STATE_ABBREVIATION = /^[A-Z](\.[A-Z])+\.?$/i;
 
 const LICENSE_PREFIXES = /^(university|college|institute|school)\s+of\s+/i;
 
-/** Minimal RFC-4180-ish CSV parser (handles quotes, escaped quotes, CRLF). */
 export function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -175,7 +152,6 @@ export function parseCsv(text) {
     });
 }
 
-/** Collapses a name to a comparable key: lowercase alphanumerics only. */
 export function normalizeName(name) {
   return String(name || '')
     .toLowerCase()
@@ -183,7 +159,6 @@ export function normalizeName(name) {
     .trim();
 }
 
-/** Short, human-friendly identifier used for deduplication and Algolia keys. */
 export function slugify(value) {
   return String(value || '')
     .toLowerCase()
@@ -192,10 +167,6 @@ export function slugify(value) {
     .slice(0, 80);
 }
 
-/**
- * Builds an abbreviation such as "IITB" for "Indian Institute of Technology
- * Bombay" by dropping filler words before taking initials.
- */
 export function buildShortName(name) {
   const filler = new Set(['of', 'and', 'the', 'for', 'in', 'at', 'to', 'a', 'an', '&']);
   const words = String(name || '')
@@ -203,8 +174,6 @@ export function buildShortName(name) {
     .split(/\s+/)
     .filter(Boolean);
 
-  // A college that opens with its own abbreviation keeps it: "BNM Institute of
-  // Technology" is BNM — taking initials from every word would produce "BIT".
   const first = words[0] || '';
   const notAnAcronym = new Set(['THE', 'AND', 'OF', 'A', 'AN', 'SRI', 'SHRI', 'ST']);
   if (/^[A-Z][A-Z0-9&]{1,5}$/.test(first) && !notAnAcronym.has(first)) {
@@ -221,31 +190,20 @@ export function buildShortName(name) {
   return String(name || 'COLLEGE').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'COLLEGE';
 }
 
-/** Finds the state/UT named inside a free-text postal address. */
 export function extractState(address) {
   const haystack = String(address || '').toLowerCase();
   if (!haystack) return '';
   return INDIAN_STATES.find((state) => haystack.includes(state.toLowerCase())) || '';
 }
 
-/**
- * The upstream datasets contain a handful of double-encoded characters (a
- * non-breaking space stored as "Â "). Normalizing them keeps names readable
- * instead of importing the mojibake as-is.
- */
 const normalizeText = (value) =>
   String(value || '')
     .replace(/[\u00c2\u00a0\u200b]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-// Small words stay lowercase mid-phrase: "Indian Institute of Technology".
 const MINOR_WORDS = new Set(['and', 'of', 'in', 'for', 'to', 'the', 'a', 'an', 'at', 'on', 'by']);
 
-/**
- * Capitalises the first letter of a token, ignoring leading punctuation so
- * "(DATA" becomes "(Data" and leaving digits alone ("12TH" → "12th").
- */
 const capitaliseToken = (word) => {
   const lower = word.toLowerCase();
   const letter = lower.match(/[a-z]/);
@@ -255,11 +213,6 @@ const capitaliseToken = (word) => {
   return lower.slice(0, index) + letter[0].toUpperCase() + lower.slice(index + 1);
 };
 
-/**
- * Title-cases a value while preserving acronyms. AICTE data is entirely upper
- * case, so "BNM INSTITUTE OF TECHNOLOGY" must become "BNM Institute of
- * Technology" — not "Bnm Institute of Technology".
- */
 const smartTitleCase = (value) =>
   normalizeText(value)
     .split(/\s+/)
@@ -267,19 +220,16 @@ const smartTitleCase = (value) =>
     .map((word, index) => {
       const lower = word.toLowerCase();
 
-      // Minor words are checked first: "OF" and "AND" are vowel-poor but they
-      // are not initialisms.
       if (index > 0 && MINOR_WORDS.has(lower)) return lower;
 
       const vowels = (word.match(/[AEIOUYaeiouy]/g) || []).length;
-      // Short, vowel-poor words read as initialisms (BNM, RVCE, KLE, IIT).
+
       if (word.length <= 6 && vowels <= 1) return word.toUpperCase();
 
       return capitaliseToken(word);
     })
     .join(' ');
 
-/** Runs an async worker over items with a bounded number of parallel calls. */
 async function mapWithConcurrency(items, limit, worker) {
   const results = new Array(items.length);
   let cursor = 0;
@@ -296,7 +246,6 @@ async function mapWithConcurrency(items, limit, worker) {
   return results;
 }
 
-/** Strips postal prefixes such as "Dist.", "P.O" and stray punctuation. */
 function cleanAddressToken(token) {
   return String(token || '')
     .replace(/^[.\-()]+|[.\-()]+$/g, '')
@@ -304,7 +253,6 @@ function cleanAddressToken(token) {
     .trim();
 }
 
-/** Best-effort city extraction from a postal address, given its state. */
 export function extractCity(address, state) {
   const raw = String(address || '').replace(/\s+/g, ' ').trim();
   if (!raw) return '';
@@ -320,7 +268,7 @@ export function extractCity(address, state) {
     .filter((token) => token.length >= 3)
     .filter((token) => !STATE_ABBREVIATION.test(token))
     .filter((token) => !ADDRESS_STOPWORDS.has(token.toLowerCase()))
-    // A place name always carries a vowel — this drops parse noise.
+
     .filter((token) => /[aeiou]/i.test(token));
 
   if (tokens.length === 0) return '';
@@ -353,7 +301,6 @@ function inferInstituteType(name, declaredType) {
   return 'Institute';
 }
 
-/** Names like "University of Hyderabad" keep their subject in the middle. */
 function tidyName(name) {
   return normalizeText(name)
     .replace(/["']/g, '')
@@ -370,13 +317,6 @@ function isUsableName(name) {
   return /[A-Za-z]{3}/.test(clean);
 }
 
-/**
- * Turns the raw rows of every source into College-shaped documents.
- *
- * Records are deduplicated by normalised name *and state*, so the same college
- * listed by two sources becomes one document while two genuinely different
- * institutions sharing a name in different states stay separate.
- */
 export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] } = {}) {
   const byKey = new Map();
 
@@ -390,8 +330,6 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
       return;
     }
 
-    // Merge: keep whatever each source knows, preferring the first (richer)
-    // source for identity and filling the gaps from the record we just read.
     const merged = { ...existing };
     merged.location = {
       ...existing.location,
@@ -414,14 +352,13 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
     byKey.set(key, merged);
   };
 
-  // ── UGC Indian University Dataset ─────────────────────────────────────────
   for (const row of ugcRows) {
     const name = tidyName(row.Name);
     if (!isUsableName(name)) continue;
 
     const address = String(row.Address || '').replace(/\s+/g, ' ').trim();
     const state = extractState(address);
-    if (!state) continue; // outside India / unparseable
+    if (!state) continue;
 
     upsert({
       name,
@@ -447,7 +384,6 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
     });
   }
 
-  // ── Hugging Face global-universities (India slice) ────────────────────────
   for (const row of hfRows) {
     const country = String(row.country || '').trim().toLowerCase();
     if (country !== 'india') continue;
@@ -455,8 +391,6 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
     const name = tidyName(row.name);
     if (!isUsableName(name)) continue;
 
-    // No location in the global dataset? Leave it blank instead of inventing
-    // one — the UI renders an "India" fallback for display only.
     const state = extractState(row.city || '') || extractState(name) || '';
     const founded = Number.parseInt(row.founded, 10);
 
@@ -484,15 +418,12 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
     });
   }
 
-  // ── AICTE approved institutions ───────────────────────────────────────────
   for (const row of aicteRows) {
     const name = tidyName(row.institute_name);
     if (!isUsableName(name)) continue;
 
     const programmes = Array.isArray(row.programmes) ? row.programmes : [];
-    // Diploma-only entries are polytechnics; keep degree-granting colleges.
-    // Records with no programme list at all are kept — that is a data gap, not
-    // evidence that the college teaches nothing.
+
     const grantsDegrees =
       programmes.length === 0 || programmes.some((p) => /GRADUATE/i.test(p.level || ''));
     if (!grantsDegrees) continue;
@@ -510,7 +441,7 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
       location: {
         address,
         district,
-        // The district is the reliable, consistent locality in this dataset.
+
         city: district || extractCity(address, state),
         state,
         pincode: extractPincode(address)
@@ -530,14 +461,8 @@ export function buildCollegeRecords({ hfRows = [], ugcRows = [], aicteRows = [] 
   return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Values that appear in the programme columns but are not courses. */
 const NOT_A_COURSE = /^(1st|2nd|3rd|first|second|third)\s+shift$|^shift$|^n\/?a$|^\d+$|^-+$/i;
 
-/**
- * Broad streams an institution teaches ("ENGINEERING AND TECHNOLOGY",
- * "MANAGEMENT"). These drive the course filter and the match maker, so they
- * stay at a granularity a student can actually choose between.
- */
 function aicteStreams(programmes) {
   const names = new Set();
 
@@ -550,10 +475,6 @@ function aicteStreams(programmes) {
   return [...names].sort().slice(0, 8);
 }
 
-/**
- * Detailed specialisations ("COMPUTER SCIENCE AND ENGINEERING"), shown on the
- * college page and used for course matching.
- */
 function aicteBranches(programmes) {
   const byKey = new Map();
 
@@ -568,7 +489,6 @@ function aicteBranches(programmes) {
   return [...byKey.values()].sort().slice(0, 25);
 }
 
-/** Shapes a record into a document that matches the College schema. */
 export function toCollegeDocument(record, sourceById, syncedAt = new Date()) {
   const primarySourceId = record.sources?.[0] || null;
   const source = primarySourceId ? sourceById.get(primarySourceId) : null;
@@ -591,8 +511,6 @@ export function toCollegeDocument(record, sourceById, syncedAt = new Date()) {
     womenOnly: record.womenOnly,
     hostelAvailable: record.hostelAvailable,
 
-    // Real institutions are not NIRF-ranked in the source data, so they are
-    // stored as "unranked" (999) rather than given an invented rank.
     nirfRanking: 999,
     ranking: { nirf: null, stateRank: null },
 
@@ -628,10 +546,6 @@ async function fetchText(url) {
   return String(response.data || '');
 }
 
-/**
- * Downloads every open source and returns normalized college documents.
- * Individual source failures are tolerated as long as one source succeeds.
- */
 export async function fetchOpenDatasetRecords({ log = console.log } = {}) {
   const sourceById = new Map(SOURCES.map((source) => [source.id, source]));
   const raw = {};
@@ -647,7 +561,6 @@ export async function fetchOpenDatasetRecords({ log = console.log } = {}) {
       return rows;
     }
 
-    // Multi-file source (one file per state): partial success is fine.
     let failed = 0;
     const perFile = await mapWithConcurrency(source.files, 5, async (url) => {
       try {
@@ -707,17 +620,12 @@ export async function fetchOpenDatasetRecords({ log = console.log } = {}) {
   };
 }
 
-/**
- * Writes the fetched dataset to disk so seeding can run without network.
- * Stored compactly: at ~13k records a pretty-printed file would be enormous.
- */
 export async function writeSnapshot(payload) {
   await fs.mkdir(path.dirname(SNAPSHOT_PATH), { recursive: true });
   await fs.writeFile(SNAPSHOT_PATH, JSON.stringify(payload), 'utf8');
   return SNAPSHOT_PATH;
 }
 
-/** Reads the cached snapshot, or null when it has not been generated yet. */
 export async function readSnapshot() {
   try {
     const raw = await fs.readFile(SNAPSHOT_PATH, 'utf8');
@@ -729,10 +637,6 @@ export async function readSnapshot() {
   }
 }
 
-/**
- * Upserts the open-data records into MongoDB, keyed by sourceKey so repeat
- * refreshes update instead of duplicating.
- */
 export async function upsertColleges(College, colleges, { log = console.log } = {}) {
   if (!Array.isArray(colleges) || colleges.length === 0) {
     return { inserted: 0, updated: 0, total: 0 };

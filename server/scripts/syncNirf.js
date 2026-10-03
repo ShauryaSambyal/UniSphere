@@ -15,20 +15,6 @@ import {
   writeNirfSnapshot
 } from '../services/nirfService.js';
 
-/**
- * NIRF (Ministry of Education) data pipeline.
- *
- *   npm run data:nirf                    → scrape rankings + DCS PDFs, write snapshot
- *   npm run data:nirf -- --rankings-only → skip DCS PDFs (rankings only)
- *   npm run data:nirf -- --apply         → also enrich MongoDB colleges (no wipe)
- *   npm run data:nirf -- --from-snapshot --apply
- *                                        → re-apply the committed snapshot only
- *
- * DCS parses are cached per institute ID under server/data/.nirf-cache, so the
- * run is resumable: rerun it and only missing PDFs are fetched. Everything is
- * FETCHED POLITELY (small concurrency + delay) and only public MoE data.
- */
-
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
 const flagValue = (flag, fallback) => {

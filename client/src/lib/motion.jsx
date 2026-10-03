@@ -1,7 +1,4 @@
-/**
- * Shared motion vocabulary — one quiet, professional easing curve used
- * everywhere so the site feels like a single designed system.
- */
+
 export const EASE = [0.22, 1, 0.36, 1];
 
 export const fadeUp = (delay = 0, distance = 18) => ({

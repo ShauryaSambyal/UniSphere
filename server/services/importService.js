@@ -7,7 +7,6 @@ import Course from '../models/Course.js';
 import Ranking from '../models/Ranking.js';
 import Hostel from '../models/Hostel.js';
 
-// Basic fuzzy matching
 function fuzzyMatch(str1, str2) {
   if (!str1 || !str2) return false;
   const s1 = str1.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -29,8 +28,7 @@ export async function findCollege(record) {
     if (college) return college;
   }
   if (record.name) {
-    // Fallback: Fuzzy Name Match
-    // We check records that share some common words
+
     const words = record.name.split(' ').filter(w => w.length > 3);
     if (words.length > 0) {
       const regexPattern = words.join('|');
@@ -54,13 +52,12 @@ export async function importDataFile(filePath, stats) {
     return;
   }
 
-  // Handle both array format and wrapper object format
   const records = Array.isArray(data) ? data : (data.data || data.records || Object.values(data)[0] || []);
 
   console.log(`Processing ${fileName} with ${records.length} records...`);
 
   for (const record of records) {
-    // Normalize record to object format if it is an array
+
     let normalizedRecord = record;
     if (Array.isArray(record)) {
       normalizedRecord = {
@@ -101,12 +98,10 @@ export async function importDataFile(filePath, stats) {
       const city = normalizedRecord.district || 'Bangalore';
       const state = 'Karnataka';
 
-      // Default course & placements depending on instituteType or randomized
       const courseList = ['Computer Science Engineering', 'Information Science Engineering', 'Electronics & Communication Engineering', 'Mechanical Engineering', 'Electrical & Electronics Engineering'];
       const facilityList = ['Library', 'Gym', 'Sports Complex', 'WiFi Campus', 'Smart Classrooms', 'Cafeteria', 'Auditorium'];
       const shortName = name.split(' ').map(w => w[0]).join('').replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 6);
 
-      // Create new college if it's the main colleges list, else we might just ignore
       college = new College({
         name,
         aicteId: normalizedRecord.aicteId,
@@ -153,7 +148,6 @@ export async function importDataFile(filePath, stats) {
       stats.merged++;
     }
 
-    // Determine type of file and process accordingly
     if (fileName.includes('placements')) {
       const placement = new Placement({
         collegeId: college._id,
@@ -163,7 +157,7 @@ export async function importDataFile(filePath, stats) {
         year: record.year
       });
       await placement.save();
-      
+
       college.placements = {
         averagePackage: record.averagePackage || college.placements?.averagePackage,
         highestPackage: record.highestPackage || college.placements?.highestPackage,
@@ -178,7 +172,7 @@ export async function importDataFile(filePath, stats) {
         totalFee: record.totalFee
       });
       await fee.save();
-      
+
       college.fees = {
         tuitionFee: record.tuitionFee || college.fees?.tuitionFee,
         hostelFee: record.hostelFee || college.fees?.hostelFee,
@@ -186,7 +180,7 @@ export async function importDataFile(filePath, stats) {
       };
       await college.save();
     } else if (fileName.includes('courses')) {
-      // Add courses
+
       if (record.courses && Array.isArray(record.courses)) {
         for(let courseName of record.courses) {
            const course = new Course({ collegeId: college._id, name: courseName });
@@ -204,7 +198,7 @@ export async function importDataFile(filePath, stats) {
         stateRank: record.stateRank || record.ranking?.stateRank
       });
       await ranking.save();
-      
+
       college.ranking = {
         nirf: record.nirfRank || record.ranking?.nirf || college.ranking?.nirf,
         stateRank: record.stateRank || record.ranking?.stateRank || college.ranking?.stateRank
@@ -218,7 +212,7 @@ export async function importDataFile(filePath, stats) {
         details: record.details
       });
       await hostel.save();
-      
+
       college.hostel = {
         boysHostel: record.boysHostel ?? college.hostel?.boysHostel,
         girlsHostel: record.girlsHostel ?? college.hostel?.girlsHostel,
@@ -226,7 +220,7 @@ export async function importDataFile(filePath, stats) {
       };
       await college.save();
     } else {
-      // Just generic college updates
+
       if (record.location) {
         college.location = { ...college.location, ...record.location };
         await college.save();

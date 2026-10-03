@@ -5,15 +5,9 @@ import '../config/env.js';
 const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID || '';
 const INDEX_NAME = process.env.ALGOLIA_INDEX_NAME || 'colleges';
 
-// Algolia issues a separate key per privilege level. Indexing needs the write
-// key; queries only need the least-privileged search key. ALGOLIA_API_KEY is
-// still honoured as a single-key fallback for both.
 const ALGOLIA_WRITE_API_KEY =
   process.env.ALGOLIA_WRITE_API_KEY || process.env.ALGOLIA_API_KEY || '';
 
-// A full directory rebuild writes one indexing operation per record, which can
-// burn a free Algolia plan in a single seed. Above this many colleges the bulk
-// sync is skipped and search uses the MongoDB fallback instead.
 const ALGOLIA_MAX_RECORDS = Number.parseInt(process.env.ALGOLIA_MAX_RECORDS, 10) || 4000;
 const ALGOLIA_SEARCH_API_KEY =
   process.env.ALGOLIA_SEARCH_API_KEY || process.env.ALGOLIA_API_KEY || '';
@@ -28,8 +22,6 @@ function createAlgoliaClient(apiKey, label) {
   }
 }
 
-// The write client can add and delete records, so it must never be exposed to
-// browser code or reused for public-facing queries.
 const writeClient = createAlgoliaClient(ALGOLIA_WRITE_API_KEY, 'write');
 const searchClient = createAlgoliaClient(ALGOLIA_SEARCH_API_KEY, 'search') || writeClient;
 
@@ -37,9 +29,6 @@ if (!writeClient || !searchClient) {
   console.info('Algolia credentials missing in environment variables. Using MongoDB fallback search mode.');
 }
 
-/**
- * Ensures index settings are initialized in Algolia.
- */
 async function initializeSearchIndex() {
   if (!writeClient) return null;
   try {
@@ -58,14 +47,11 @@ async function initializeSearchIndex() {
   }
 }
 
-/**
- * Add or update college in Algolia.
- */
 export async function syncCollegeToSearch(college) {
   if (!writeClient) return false;
   try {
     const doc = {
-      objectID: college._id.toString(), // Algolia requires objectID
+      objectID: college._id.toString(),
       name: college.name,
       shortName: college.shortName || '',
       location: {
@@ -91,9 +77,6 @@ export async function syncCollegeToSearch(college) {
   }
 }
 
-/**
- * Add or update multiple colleges in Algolia in bulk.
- */
 export async function syncAllCollegesToSearch(colleges) {
   if (!writeClient) return false;
 
@@ -133,10 +116,6 @@ export async function syncAllCollegesToSearch(colleges) {
   }
 }
 
-/**
- * Removes every record from the index. Used before a full re-seed so stale
- * objects (whose MongoDB documents no longer exist) cannot shadow real results.
- */
 export async function clearSearchIndex() {
   if (!writeClient) return false;
   try {
@@ -149,9 +128,6 @@ export async function clearSearchIndex() {
   }
 }
 
-/**
- * Delete college from Algolia.
- */
 export async function deleteCollegeFromSearch(collegeId) {
   if (!writeClient) return false;
   try {
@@ -167,18 +143,13 @@ export async function deleteCollegeFromSearch(collegeId) {
   }
 }
 
-/**
- * Ranks a MongoDB match against the query. Lower is better: an exact
- * abbreviation ("BNM" → shortName "BNM") must outrank a name that merely
- * contains those letters somewhere ("Bhupender Narayan Mandal University").
- */
 function matchScore(college, term) {
   const name = String(college.name || '').toLowerCase();
   const short = String(college.shortName || '').toLowerCase();
 
   if (short === term) return 0;
   if (name === term) return 1;
-  // The query matching a whole leading word beats matching inside a longer one.
+
   if (name.startsWith(`${term} `)) return 2;
   if (short.startsWith(term)) return 3;
   if (name.startsWith(term)) return 4;
@@ -188,13 +159,9 @@ function matchScore(college, term) {
   return 8;
 }
 
-/**
- * Perform search queries.
- * Falls back to MongoDB text/regex matching if Algolia is not available.
- */
 export async function searchColleges(queryText, limit = 10) {
   if (!queryText) {
-    // Return top rankers as defaults
+
     return College.find({}).sort({ nirfRanking: 1 }).limit(limit);
   }
 
@@ -216,11 +183,8 @@ export async function searchColleges(queryText, limit = 10) {
         const ids = hits.map(h => h.objectID);
         const colleges = await College.find({ _id: { $in: ids } });
 
-        // Stale index entries point at documents that no longer exist; when
-        // that happens, fall through to the MongoDB search instead of
-        // returning an empty list.
         if (colleges.length > 0) {
-          // Retain search rankings order
+
           const orderMap = {};
           ids.forEach((id, idx) => {
             orderMap[id] = idx;
@@ -233,8 +197,6 @@ export async function searchColleges(queryText, limit = 10) {
     }
   }
 
-  // MongoDB Regex Match Fallback. Over-fetch so the results can be ranked by
-  // relevance before the page is trimmed to `limit`.
   const escapedQuery = queryText.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
   const regex = new RegExp(escapedQuery, 'i');
   const matches = await College.find({
@@ -253,5 +215,4 @@ export async function searchColleges(queryText, limit = 10) {
     .slice(0, limit);
 }
 
-// Trigger index configuration on load
 initializeSearchIndex().catch(() => {});

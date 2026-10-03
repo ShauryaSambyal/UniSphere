@@ -14,21 +14,16 @@ if (apiKey) {
   console.warn('WARNING: GEMINI_API_KEY environment variable is not defined. AI functionality will use mock answers.');
 }
 
-/**
- * Generates an AI summary of a college based on its data.
- * @param {Object} collegeData 
- * @returns {Promise<string>}
- */
 export async function generateCollegeSummary(collegeData) {
   if (!apiKey || !ai) {
     return `Mock AI Summary for ${collegeData.name || 'this college'}: A premier institute located in ${collegeData.location?.city || 'India'}. Known for its high-quality academic environment and placement package averages of around ${collegeData.placements?.averagePackage || 'N/A'}. Offers top courses including ${collegeData.courses?.join(', ') || 'multiple engineering disciplines'}.`;
   }
 
   try {
-    // We use gemini-2.5-flash as default stable text model
+
     const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `Summarize this college for prospective students in 2-3 detailed paragraphs. Highlighting fees, placements, courses, and unique highlights.
-    
+
 Context:
 ${JSON.stringify(collegeData, null, 2)}`;
 
@@ -40,12 +35,6 @@ ${JSON.stringify(collegeData, null, 2)}`;
   }
 }
 
-/**
- * RAG Chat assistant answer.
- * @param {string} question - The user's query.
- * @param {Array<Object>} retrievedColleges - Context documents from vector search.
- * @returns {Promise<string>}
- */
 export async function askGeminiAboutColleges(question, retrievedColleges) {
   if (!apiKey || !ai) {
     return `[Mock AI Assistant]: To answer your question: "${question}", I looked through the college data. ${retrievedColleges.length > 0 ? `I found matches like ${retrievedColleges.map(c => c.name).join(', ')}.` : 'No relevant colleges were found.'} Since GEMINI_API_KEY is not set, this is a mock answer. Please configure GEMINI_API_KEY in the .env file.`;
@@ -77,19 +66,12 @@ Answer:`;
   }
 }
 
-/**
- * Streams RAG Chat response.
- * @param {string} question 
- * @param {Array<Object>} retrievedColleges 
- * @param {Function} onChunk - callback for incoming text chunks
- */
 export async function streamGeminiAboutColleges(question, retrievedColleges, onChunk) {
   if (!apiKey || !ai) {
     const mockMsg = `[Mock Streaming AI Assistant]: Here is the mock info for: "${question}".\n\n` +
       `Context contains: ${retrievedColleges.map(c => c.name).join(', ') || 'No colleges found'}.\n\n` +
       `Configure the GEMINI_API_KEY in the .env file to enable live streaming answers.`;
-    
-    // Simulate streaming
+
     const words = mockMsg.split(' ');
     for (const word of words) {
       onChunk(word + ' ');

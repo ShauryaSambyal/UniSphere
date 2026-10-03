@@ -14,8 +14,6 @@ export default function Compare() {
   const [selectedColleges, setSelectedColleges] = useState([]);
   const [searchError, setSearchError] = useState('');
 
-  // Home's "Compare now" button links here with ?a=<id>&b=<id>: preload those
-  // colleges so the comparison is ready immediately instead of empty.
   useEffect(() => {
     const ids = ['a', 'b']
       .map((key) => searchParams.get(key))
@@ -125,7 +123,7 @@ export default function Compare() {
           )}
         </div>
 
-        {/* Selected chips */}
+        {}
         {selectedColleges.length > 0 && (
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
             {selectedColleges.map(c => (
@@ -145,7 +143,7 @@ export default function Compare() {
 
       {selectedColleges.length > 0 ? (
         <div className="space-y-10">
-          {/* Comparison Table */}
+          {}
           <motion.div {...fadeUp(0.05)} className="overflow-hidden rounded-2xl border border-line bg-card">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
@@ -206,7 +204,7 @@ export default function Compare() {
             </div>
           </motion.div>
 
-          {/* Placements Chart */}
+          {}
           <motion.div {...fadeUp(0.1)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <h2 className="mb-6 text-lg font-semibold tracking-[-0.01em] text-foreground">Placements comparison</h2>
             <div className="h-96 w-full">

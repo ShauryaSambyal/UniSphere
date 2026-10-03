@@ -4,9 +4,6 @@ import '../config/env.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_in_production';
 
-/**
- * Middleware to authenticate requests using JWT.
- */
 export async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -28,9 +25,6 @@ export async function authenticateToken(req, res, next) {
   }
 }
 
-/**
- * Middleware to restrict requests to admin accounts.
- */
 export function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ message: 'Admin privileges required' });

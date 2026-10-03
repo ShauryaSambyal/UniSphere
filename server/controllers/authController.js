@@ -5,16 +5,12 @@ import { verifyFirebaseIdToken } from '../services/firebaseTokenService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key_change_me_in_production';
 
-// Helper to generate JWT
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'unisphere-ae503';
+
 const generateToken = (id) => {
   return jwt.sign({ id }, JWT_SECRET, { expiresIn: '7d' });
 };
 
-/**
- * Google accounts listed in ADMIN_EMAILS (comma separated) are promoted to
- * admins on sign-in. Sign-in is Google-only, so this allow-list is how an
- * administrator account gets created without an email/password form.
- */
 const adminEmails = () =>
   new Set(
     String(process.env.ADMIN_EMAILS || '')
@@ -23,9 +19,6 @@ const adminEmails = () =>
       .filter(Boolean)
   );
 
-/**
- * Register a new user.
- */
 export async function register(req, res) {
   try {
     const { name, email, password, role } = req.body;
@@ -39,7 +32,6 @@ export async function register(req, res) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Set role to 'admin' if explicit (or restrict in prod, but let's allow setting it for easier admin dashboard testing)
     const userRole = role === 'admin' ? 'admin' : 'student';
 
     const user = await User.create({
@@ -66,9 +58,6 @@ export async function register(req, res) {
   }
 }
 
-/**
- * Login user.
- */
 export async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -104,14 +93,6 @@ export async function login(req, res) {
   }
 }
 
-/**
- * Exchange a Firebase ID token for the app's own JWT.
- * Body: { idToken, name?, role? }
- *
- * Firebase users are mirrored into MongoDB on first sign-in (and linked to
- * existing local accounts with the same email), so roles and all existing
- * protected routes keep working unchanged.
- */
 export async function firebaseAuth(req, res) {
   try {
     const { idToken, name, role } = req.body;
@@ -120,14 +101,7 @@ export async function firebaseAuth(req, res) {
       return res.status(400).json({ message: 'Firebase ID token is required' });
     }
 
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    if (!projectId) {
-      return res.status(503).json({
-        message: 'Firebase authentication is not configured on the server. Set FIREBASE_PROJECT_ID in server/.env.'
-      });
-    }
-
-    const payload = await verifyFirebaseIdToken(idToken, projectId);
+    const payload = await verifyFirebaseIdToken(idToken, FIREBASE_PROJECT_ID);
     const email = String(payload.email || '').toLowerCase();
 
     if (!email) {
@@ -148,13 +122,11 @@ export async function firebaseAuth(req, res) {
     } else {
       let dirty = false;
 
-      // Link this local account (e.g. a seeded demo user) to Firebase.
       if (!user.firebaseUid) {
         user.firebaseUid = firebaseUid;
         dirty = true;
       }
 
-      // Promote (never demote) accounts named in ADMIN_EMAILS.
       if (isAllowListedAdmin && user.role !== 'admin') {
         user.role = 'admin';
         dirty = true;
@@ -180,9 +152,6 @@ export async function firebaseAuth(req, res) {
   }
 }
 
-/**
- * Get current authenticated user details.
- */
 export async function getMe(req, res) {
   try {
     return res.json({

@@ -9,7 +9,7 @@ const nearbyPlaceSchema = new mongoose.Schema({
   },
   name: { type: String, required: true },
   address: { type: String },
-  type: { type: String }, // e.g. restaurant, mall, hospital, metro_station
+  type: { type: String },
   rating: { type: Number },
   distance: { type: String },
   latitude: { type: Number },

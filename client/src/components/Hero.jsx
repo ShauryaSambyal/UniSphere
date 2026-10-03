@@ -8,7 +8,6 @@ import useCollegeFilters from '../lib/useCollegeFilters';
 import { locationLabel, prettyLabel, nirfLabel, hasNirf } from '../lib/format';
 import { EASE, fadeUp, dropdownVariants, dropdownItem } from '../lib/motion';
 
-/* `mark: true` paints the word with the mint highlighter swash. */
 const HEADLINE_LINE_1 = [
   { text: 'Find' },
   { text: 'the' },
@@ -21,21 +20,15 @@ const HEADLINE_LINE_2 = [
   { text: 'data.' },
 ];
 
-/* Only used until the live count arrives, so the hero never shows a blank. */
 const FALLBACK_STATS = [
   { value: '2,000+', label: 'Indexed colleges' },
   { value: 'Open data', label: 'Provenance tracked' },
   { value: '6', label: 'Data dimensions compared' },
 ];
 
-/* Quiet pill used by the three hero filters. */
 const PILL_TRIGGER =
   'flex w-full cursor-pointer items-center justify-between gap-1.5 rounded-full border border-line bg-card px-4 py-2.5 text-xs font-medium text-foreground transition-colors duration-150 hover:border-line-strong';
 
-/**
- * Reveals a headline one word at a time, rising out of a blur. Line two is
- * delayed past the end of line one so the sentence reads in order.
- */
 function WordLine({ words, delay = 0, className = '' }) {
   return (
     <span className={className}>
@@ -63,15 +56,12 @@ export default function Hero() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 
-  // Quick search filter states
   const [selectedState, setSelectedState] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
 
-  // Every state / city / course present in the database (with an offline fallback).
   const { states, cities, courses } = useCollegeFilters();
 
-  // Live directory size — the headline numbers must never outpace the data.
   const [collegeCount, setCollegeCount] = useState(null);
 
   useEffect(() => {
@@ -101,7 +91,6 @@ export default function Hero() {
     'Refreshed from public data',
   ];
 
-  // Handle outside clicks to close the autocomplete dropdown
   useEffect(() => {
     function handleClickOutside(event) {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
@@ -112,7 +101,6 @@ export default function Hero() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch suggestions with a simple debounce effect
   useEffect(() => {
     const delayDebounce = setTimeout(async () => {
       if (query.trim().length < 2) {
@@ -135,10 +123,6 @@ export default function Hero() {
     return () => clearTimeout(delayDebounce);
   }, [query]);
 
-  // Submitting the search goes straight to the best match when we have one.
-  // Otherwise the query is handed to the directory as a filter — the page must
-  // never scroll away on its own while the visitor is still looking for a
-  // college.
   const handleSearchSubmit = (event) => {
     event.preventDefault();
     const term = query.trim();
@@ -170,7 +154,7 @@ export default function Hero() {
 
   return (
     <section className="relative overflow-hidden">
-      {/* Barely-there warm light behind the headline — the only ornament */}
+      {}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[460px]"
@@ -181,7 +165,7 @@ export default function Hero() {
       />
 
       <div className="mx-auto max-w-5xl px-5 pb-16 pt-16 text-center sm:px-6 sm:pt-20 lg:pb-20 lg:pt-24">
-        {/* Eyebrow */}
+        {}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -197,7 +181,7 @@ export default function Hero() {
           </span>
         </motion.div>
 
-        {/* Display headline — the marked word carries the mint accent */}
+        {}
         <h1 className="mx-auto max-w-3xl text-[2.5rem] font-semibold leading-[1.12] tracking-[-0.035em] text-foreground sm:text-6xl lg:text-[4.1rem]">
           <WordLine words={HEADLINE_LINE_1} delay={0.12} className="block" />
           <WordLine
@@ -207,7 +191,7 @@ export default function Hero() {
           />
         </h1>
 
-        {/* Subline */}
+        {}
         <motion.p
           {...fadeUp(0.6)}
           className="mx-auto mt-7 max-w-xl text-[17px] font-normal leading-relaxed text-muted"
@@ -216,7 +200,7 @@ export default function Hero() {
           anything — every answer grounded in verified campus data.
         </motion.p>
 
-        {/* Search */}
+        {}
         <motion.div
           {...fadeUp(0.68, 22)}
           className="relative mx-auto mt-10 max-w-xl"
@@ -247,7 +231,7 @@ export default function Hero() {
             </button>
           </form>
 
-          {/* Autocomplete */}
+          {}
           <AnimatePresence>
             {isOpen && suggestions.length > 0 && (
               <motion.div
@@ -304,7 +288,7 @@ export default function Hero() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Secondary action */}
+        {}
         <motion.div {...fadeUp(0.76)} className="mt-4 flex items-center justify-center">
           <Link
             to="/chat"
@@ -318,7 +302,7 @@ export default function Hero() {
           </Link>
         </motion.div>
 
-        {/* Filters */}
+        {}
         <motion.form
           {...fadeUp(0.84)}
           onSubmit={handleFilterSearch}
@@ -359,7 +343,7 @@ export default function Hero() {
           </button>
         </motion.form>
 
-        {/* Proof */}
+        {}
         <motion.div
           initial="hidden"
           animate="show"
@@ -384,7 +368,7 @@ export default function Hero() {
         </motion.div>
       </div>
 
-      {/* Signature marquee */}
+      {}
       <div className="marquee border-t border-line py-6">
         <div className="marquee-track">
           {[0, 1].map((copy) => (

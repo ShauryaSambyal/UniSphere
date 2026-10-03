@@ -16,12 +16,12 @@ export const fetchNearbyPlaces = async (collegeId, latitude, longitude, radius =
   try {
     for (const type of types) {
       const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${radius}&type=${type}&key=${MAPS_API_KEY}`;
-      
+
       const response = await axios.get(url);
       if (response.data.results) {
-        // Take top 3 for each category to avoid cluttering
+
         const topResults = response.data.results.slice(0, 3);
-        
+
         for (const res of topResults) {
           const place = new NearbyPlace({
             collegeId,
@@ -40,6 +40,6 @@ export const fetchNearbyPlaces = async (collegeId, latitude, longitude, radius =
   } catch (error) {
     console.error("Google Maps API Error:", error.message);
   }
-  
+
   return places;
 };

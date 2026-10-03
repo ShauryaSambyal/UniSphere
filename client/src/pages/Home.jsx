@@ -15,8 +15,6 @@ export default function Home() {
   const [compareList, setCompareList] = useState([]);
   const [dataset, setDataset] = useState(null);
 
-  // Provenance banner: which open datasets the directory was built from, and
-  // how fresh that data is.
   useEffect(() => {
     let cancelled = false;
 
@@ -31,11 +29,8 @@ export default function Home() {
     };
   }, []);
 
-  // Free-text search handed over by the hero search box ("?q="): shown in the
-  // heading and sent to the API.
   const searchTerm = new URLSearchParams(location.search).get('q') || '';
 
-  // Parse filters from URL query parameters
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const state = searchParams.get('state') || '';
@@ -59,7 +54,6 @@ export default function Home() {
     fetchColleges();
   }, [location.search]);
 
-  // Toggle college selection for compare
   const toggleCompare = (college) => {
     setCompareList(prev => {
       const exists = prev.find(c => c._id === college._id);
@@ -67,7 +61,7 @@ export default function Home() {
         return prev.filter(c => c._id !== college._id);
       }
       if (prev.length >= 2) {
-        // Swap or alert (max 2 colleges)
+
         return [prev[1], college];
       }
       return [...prev, college];
@@ -80,17 +74,16 @@ export default function Home() {
     }
   };
 
-  // Clear filters helper
   const clearFilters = () => {
     navigate('/');
   };
 
   return (
     <div className="relative min-h-screen pb-20">
-      {/* Hero Banner with Autocomplete */}
+      {}
       <Hero />
 
-      {/* Main Listings and Filters Section */}
+      {}
       <div id="listings-section" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-4 border-b border-line pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -125,7 +118,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Skeleton Loader Grid */}
+        {}
         {loading ? (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((n) => (
@@ -133,7 +126,7 @@ export default function Home() {
             ))}
           </div>
         ) : colleges.length === 0 ? (
-          /* Empty State */
+
           <div className="mt-16 text-center">
             <BookOpen className="mx-auto mb-4 text-faint" size={40} />
             <h3 className="text-lg font-semibold text-foreground">No colleges found</h3>
@@ -144,7 +137,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          /* Listings Grid */
+
           <motion.div
             initial="hidden"
             animate="show"
@@ -162,7 +155,7 @@ export default function Home() {
                   className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-card p-6 transition-shadow duration-300 hover:shadow-[0_20px_48px_-20px_rgba(26,26,26,0.12)]"
                 >
                   <div>
-                    {/* Header */}
+                    {}
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <span className="inline-block rounded-md border border-line bg-subtle px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted">
@@ -180,7 +173,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Meta info */}
+                    {}
                     <div className="mt-4 space-y-2.5">
                       <div className="flex items-center gap-2 text-xs font-normal text-muted">
                         <MapPin size={13} className="shrink-0 text-faint" />
@@ -200,7 +193,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Courses Tags */}
+                    {}
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       {college.courses?.slice(0, 2).map((course, idx) => (
                         <span key={idx} className="rounded-md bg-subtle px-2 py-0.5 text-[10px] font-medium text-muted">
@@ -220,7 +213,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Actions footer */}
+                  {}
                   <div className="mt-6 flex items-center justify-between gap-3 border-t border-line pt-4">
                     <Link
                       to={`/college/${college._id}`}
@@ -249,7 +242,7 @@ export default function Home() {
         )}
       </div>
 
-      {/* Floating Compare Panel */}
+      {}
       <AnimatePresence>
         {compareList.length > 0 && (
           <motion.div
@@ -295,7 +288,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* RAG Assistant Promo Section */}
+      {}
       <section className="border-t border-line py-20">
         <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-8 px-4 sm:px-6 md:flex-row md:items-center lg:px-8">
           <div className="max-w-md">

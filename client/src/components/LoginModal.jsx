@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldCheck, TerminalSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-// Keys the app reads at build time. Listed in the UI so the setup step is
-// obvious when client/.env has not been filled in yet.
 const REQUIRED_KEYS = [
   'VITE_FIREBASE_API_KEY',
   'VITE_FIREBASE_AUTH_DOMAIN',
@@ -48,7 +46,7 @@ export default function LoginModal({ isOpen, onClose }) {
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
+          {}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -58,7 +56,7 @@ export default function LoginModal({ isOpen, onClose }) {
             className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
           />
 
-          {/* Modal Card */}
+          {}
           <motion.div
             initial={{ scale: 0.96, opacity: 0, y: 14 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -66,7 +64,7 @@ export default function LoginModal({ isOpen, onClose }) {
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="relative w-full max-w-md rounded-2xl border border-line bg-card-elevated p-8 shadow-[0_32px_80px_-24px_rgba(26,26,26,0.28)]"
           >
-            {/* Close Button */}
+            {}
             <button
               onClick={onClose}
               aria-label="Close"
@@ -75,7 +73,7 @@ export default function LoginModal({ isOpen, onClose }) {
               <X size={18} />
             </button>
 
-            {/* Header */}
+            {}
             <div className="mb-7">
               <h2 className="text-2xl font-semibold tracking-[-0.02em] text-foreground">
                 Sign in

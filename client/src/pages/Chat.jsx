@@ -15,14 +15,12 @@ const WELCOME_MESSAGE = {
 };
 
 export default function Chat() {
-  // Chats are session-only on purpose: every refresh starts a brand new
-  // conversation, so no history is persisted anywhere.
+
   const [messages, setMessages] = useState(() => [{ ...WELCOME_MESSAGE }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Suggested Prompts
   const suggestedPrompts = [
     'Compare RVCE and BMSCE placements',
     'Which universities are in Rajasthan?',
@@ -30,7 +28,6 @@ export default function Chat() {
     'Which colleges have the best placements?'
   ];
 
-  // Purge history saved by older builds, then keep the view pinned to the latest message.
   useEffect(() => {
     localStorage.removeItem('chat_history');
   }, []);
@@ -43,28 +40,22 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Simple custom markdown renderer helper
   const renderMarkdown = (text) => {
     if (!text) return '';
-    // Escape HTML tags to prevent XSS
+
     let html = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    // Code blocks
     html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-subtle p-3 rounded-lg font-mono text-xs my-2 overflow-x-auto border border-line">$1</pre>');
 
-    // Inline code
     html = html.replace(/`([^`]+)`/g, '<code class="bg-subtle px-1 py-0.5 rounded font-mono text-xs text-foreground">$1</code>');
 
-    // Bold
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
-    // Bullet points
     html = html.replace(/^\s*[-*]\s+(.+)$/gm, '<li class="ml-4 list-disc my-1">$1</li>');
 
-    // Newlines
     html = html.replace(/\n/g, '<br />');
 
     return <div dangerouslySetInnerHTML={{ __html: html }} className="space-y-1 text-sm leading-relaxed text-foreground" />;
@@ -84,8 +75,6 @@ export default function Chat() {
     const patchAssistant = (patch) =>
       setMessages(prev => prev.map(m => (m.id === assistantMsgId ? { ...m, ...patch } : m)));
 
-    // Abort the request if the server goes silent, so the typing indicator can
-    // never spin forever the way it did when the backend was unreachable.
     const controller = new AbortController();
     let watchdog = null;
     let content = '';
@@ -109,11 +98,9 @@ export default function Chat() {
         try {
           detail = (await response.json())?.message || '';
         } catch {
-          // Response was not JSON — the status code is all we have.
+          detail = '';
         }
 
-        // A gateway status from the dev proxy almost always means the API
-        // process is not running; say so instead of leaking a bare HTTP code.
         if (!detail && [502, 503, 504].includes(response.status)) {
           detail = 'The assistant API is not reachable. Start the backend with "npm run server" (or "npm run dev" from the project root), then try again.';
         }
@@ -140,7 +127,7 @@ export default function Chat() {
         if (!contentStarted) {
           const markerIndex = buffer.indexOf(CONTENT_MARKER);
           if (markerIndex === -1) {
-            if (!done) continue; // metadata header not fully received yet
+            if (!done) continue;
             content = buffer;
             contentStarted = true;
           } else {
@@ -170,7 +157,7 @@ export default function Chat() {
         : error instanceof TypeError
           ? 'Could not reach the AI backend. Start the server with "npm run server" (or "npm run dev" from the project root), then try again.'
           : `Error: ${error.message || 'Failed to fetch a reply from the assistant.'}`;
-      // Keep any text that already streamed in; otherwise show the error itself.
+
       patchAssistant({ content: content.trim() ? `${content}\n\n— ${failureMessage}` : failureMessage });
     } finally {
       clearTimeout(watchdog);
@@ -180,7 +167,7 @@ export default function Chat() {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-background">
-      {/* Top Header */}
+      {}
       <div className="flex shrink-0 items-center border-b border-line px-6 py-4">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground">
@@ -193,7 +180,7 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Messages Scroll View */}
+      {}
       <div className="flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl space-y-6">
           <AnimatePresence>
@@ -209,18 +196,18 @@ export default function Chat() {
                     : 'border-line bg-subtle'
                 }`}
               >
-                {/* Avatar Icon */}
+                {}
                 <div className={`flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg ${
                   msg.role === 'assistant' ? 'bg-foreground text-background' : 'border border-line bg-card text-muted'
                 }`}>
                   {msg.role === 'assistant' ? <Bot size={15} /> : <User size={15} />}
                 </div>
 
-                {/* Body Content */}
+                {}
                 <div className="flex-1 space-y-3 overflow-hidden">
                   {renderMarkdown(msg.content)}
 
-                  {/* Typing Indicator */}
+                  {}
                   {msg.role === 'assistant' && msg.content === '' && (
                     <div className="flex items-center gap-1.5 py-1.5">
                       <span className="typing-dot" />
@@ -229,7 +216,7 @@ export default function Chat() {
                     </div>
                   )}
 
-                  {/* Sources display */}
+                  {}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="space-y-2 border-t border-line pt-3">
                       <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-faint">
@@ -258,10 +245,10 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Suggested Prompts & Input Area */}
+      {}
       <div className="shrink-0 border-t border-line p-4">
         <div className="mx-auto max-w-3xl space-y-4">
-          {/* Quick Prompts list (Only show if loading is false) */}
+          {}
           {!loading && messages.length <= 1 && (
             <div className="flex flex-wrap justify-center gap-2">
               {suggestedPrompts.map((prompt, pIdx) => (
@@ -276,7 +263,7 @@ export default function Chat() {
             </div>
           )}
 
-          {/* Form Input */}
+          {}
           <form
             onSubmit={(e) => {
               e.preventDefault();

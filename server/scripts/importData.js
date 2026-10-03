@@ -22,9 +22,9 @@ async function connectDB() {
 
 async function run() {
   await connectDB();
-  
+
   console.log('Starting data ingestion...');
-  
+
   const stats = {
     imported: 0,
     merged: 0,
@@ -36,7 +36,6 @@ async function run() {
     const files = await fs.readdir(DATA_DIR);
     const jsonFiles = files.filter(f => f.endsWith('.json'));
 
-    // Priority to process aicte_colleges first if exists, to create base records
     const baseFiles = jsonFiles.filter(f => f.includes('aicte') || f.includes('college'));
     const otherFiles = jsonFiles.filter(f => !baseFiles.includes(f));
 
@@ -52,8 +51,7 @@ async function run() {
     console.log(`New Records Imported: ${stats.imported}`);
     console.log(`Records Merged/Updated: ${stats.merged}`);
     console.log(`Records Unmatched (skipped): ${stats.unmatched}`);
-    // Duplicate tracking depends on exact matching logic inside importService
-    
+
   } catch (error) {
     console.error('Error reading data directory:', error);
   }

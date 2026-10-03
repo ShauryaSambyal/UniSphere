@@ -77,7 +77,7 @@ export default function CollegeDetails() {
       variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
       className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"
     >
-      {/* Header Section */}
+      {}
       <motion.header
         {...fadeUp(0)}
         className="relative mb-10 overflow-hidden rounded-2xl border border-line bg-card p-8 md:p-10"
@@ -139,7 +139,7 @@ export default function CollegeDetails() {
         </div>
       </motion.header>
 
-      {/* Key metrics strip */}
+      {}
       <motion.div {...fadeUp(0.05)} className="mb-10 grid grid-cols-2 gap-4 md:grid-cols-4">
         {[
           {
@@ -166,9 +166,9 @@ export default function CollegeDetails() {
       </motion.div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Left Column */}
+        {}
         <div className="space-y-8 lg:col-span-2">
-          {/* AI Summary */}
+          {}
           <motion.section {...fadeUp(0.1)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <div className="mb-5 flex items-center justify-between gap-4">
               <h2 className="flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
@@ -197,7 +197,7 @@ export default function CollegeDetails() {
             )}
           </motion.section>
 
-          {/* Placements — official NIRF dossier when available, curated chart otherwise */}
+          {}
           <motion.section {...fadeUp(0.15)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <h2 className="mb-6 flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
               <Activity size={16} className="text-faint" />
@@ -316,7 +316,7 @@ export default function CollegeDetails() {
             )}
           </motion.section>
 
-          {/* Courses */}
+          {}
           <motion.section {...fadeUp(0.2)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <h2 className="mb-4 flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
               <BookOpen size={16} className="text-faint" />
@@ -359,9 +359,9 @@ export default function CollegeDetails() {
           </motion.section>
         </div>
 
-        {/* Right Column */}
+        {}
         <div className="space-y-8">
-          {/* Fees & Hostel */}
+          {}
           <motion.section {...fadeUp(0.12)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <h2 className="mb-5 flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
               <DollarSign size={16} className="text-faint" />
@@ -420,7 +420,7 @@ export default function CollegeDetails() {
             </div>
           </motion.section>
 
-          {/* Nearby Places */}
+          {}
           <motion.section {...fadeUp(0.17)} className="rounded-2xl border border-line bg-card p-6 md:p-7">
             <h2 className="mb-5 flex items-center gap-2.5 text-lg font-semibold tracking-[-0.01em] text-foreground">
               <Coffee size={16} className="text-faint" />

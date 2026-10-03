@@ -1,35 +1,18 @@
 @import "tailwindcss";
-
-/* ---------------------------------------------------------------------------
-   UniSphere design system — light only.
-
-   The palette is measured from kira-learning.com:
-     page  #FFFDF0  warm ivory (not grey-white)
-     ink   #1A1A1A
-     body  #6B6761  warm grey
-   Cards and data panels stay pure white so dense tables stay crisp against the
-   ivory page.
-
-   There is deliberately no dark theme: the variables below are the only
-   palette, so nothing can render in a colour that fights the design.
---------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
 
-  --background: #fffdf0;   /* Kira cream */
+  --background: #fffdf0;
   --foreground: #1a1a1a;
   --card: #ffffff;
   --card-elevated: #ffffff;
-  --muted: #6b6761;        /* Kira body grey */
+  --muted: #6b6761;
   --faint: #a29b8b;
   --line: #ece6d6;
   --line-strong: #dcd5c0;
   --subtle: #f7f3e6;
   --ring: rgba(26, 26, 26, 0.16);
   --overlay: rgba(26, 26, 26, 0.45);
-
-  /* Kira's one accent: a mint marker swash. It is deliberately used for
-     nothing else — no mint text, borders or buttons anywhere on their site. */
   --accent: #56eaaf;
   --accent-soft: rgba(86, 234, 175, 0.24);
 }
@@ -48,9 +31,6 @@
   --color-overlay: var(--overlay);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
-
-  /* Bricolage Grotesque is the only typeface. JetBrains Mono is used solely
-     for figures and eyebrow labels, where tabular numerals matter. */
   --font-sans: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
@@ -95,16 +75,6 @@
     border-radius: 4px;
   }
 }
-
-/* --------------------------- Marker highlight ----------------------------
-   The signature hero accent. Sizes are in `em` so a mark scales with whatever
-   headline it sits in; at Kira's 56px this reproduces their measured 14px
-   corner radius and 8px side padding exactly.
-
-   Kept `display: inline` on purpose: an inline box's background is painted to
-   the font's content box, so it covers ascenders and descenders like a real
-   highlighter and never disturbs the headline's line layout.
-------------------------------------------------------------------------- */
 @utility mark {
   background-color: var(--accent);
   color: var(--foreground);
@@ -113,8 +83,6 @@
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
-
-/* ------------------------------- Keyframes ------------------------------- */
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -124,8 +92,6 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
-/* --------------------------- Typing indicator ---------------------------- */
 .typing-indicator span,
 .typing-dot {
   display: inline-block;
@@ -146,11 +112,6 @@
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.85); }
   40% { opacity: 1; transform: scale(1.1); }
 }
-
-/* ------------------------------ Scrollbar --------------------------------
-   Inset pill that picks up the warm hairline colour, so it reads as part of
-   the page rather than a grey OS artefact.
-------------------------------------------------------------------------- */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
@@ -180,15 +141,8 @@
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
-
-/* Slimmer variant for dropdowns, chat panes and modals */
 .custom-scrollbar::-webkit-scrollbar { width: 8px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { border-width: 2px; }
-
-/* -------------------------------- Marquee --------------------------------
-   Kira's signature: an infinitely scrolling strip of large type. The track
-   holds two identical copies, so a -50% shift loops seamlessly.
-------------------------------------------------------------------------- */
 @keyframes marquee-x {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
@@ -217,8 +171,6 @@
     animation: none;
   }
 }
-
-/* --------------------------- Loading skeleton ---------------------------- */
 .skeleton {
   position: relative;
   overflow: hidden;

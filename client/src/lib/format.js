@@ -1,7 +1,4 @@
-/**
- * AICTE-sourced values arrive in ALL CAPS (e.g. "BANGALORE URBAN"). Display
- * them in Title Case while keeping the raw value for API filters.
- */
+
 export function prettyLabel(value) {
   if (typeof value !== 'string' || value.length === 0) return value;
 
@@ -13,11 +10,6 @@ export function prettyLabel(value) {
     .replace(/\b[a-z]/g, (char) => char.toUpperCase());
 }
 
-/**
- * Renders a college location for display. Open-dataset rows do not always
- * carry a city or state, so fall back gracefully instead of printing
- * ", " or "undefined".
- */
 export function locationLabel(location) {
   const city = prettyLabel(location?.city || '');
   const state = prettyLabel(location?.state || '');
@@ -26,18 +18,11 @@ export function locationLabel(location) {
   return parts.length > 0 ? parts.join(', ') : 'India';
 }
 
-/** "Unranked" reads better than the #999 sentinel used for open-data rows. */
 export function rankLabel(value) {
   const rank = Number(value);
   return Number.isFinite(rank) && rank > 0 && rank < 999 ? `#${rank}` : 'Unranked';
 }
 
-/**
- * NIRF label for a college. Exact ranks (top 100 per category) win; otherwise
- * the published rank band (101-150, 151-200, 201-300) is reported, which is
- * what NIRF itself discloses for those institutions. Falls back to the legacy
- * numeric field for rows without an NIRF record.
- */
 export function nirfLabel(college) {
   const best = Number(college?.nirf?.bestRank);
   if (Number.isFinite(best) && best > 0) return `#${best}`;
@@ -48,14 +33,12 @@ export function nirfLabel(college) {
   return rankLabel(college?.ranking?.nirf ?? college?.nirfRanking);
 }
 
-/** True when the college carries any NIRF evidence (exact rank or band). */
 export function hasNirf(college) {
   if (college?.nirf && (college.nirf.bestRank || college.nirf.bands?.length > 0)) return true;
   const legacy = Number(college?.ranking?.nirf ?? college?.nirfRanking);
   return Number.isFinite(legacy) && legacy > 0 && legacy < 999;
 }
 
-/** "₹19.6 L", "₹1.5 Cr", "₹85,000" — for NIRF rupee figures. */
 export function formatRupees(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return '';
@@ -64,7 +47,6 @@ export function formatRupees(value) {
   return `₹${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
-/** Human-friendly "3 hours ago" label for dataset freshness stamps. */
 export function timeAgo(value) {
   if (!value) return '';
   const then = new Date(value).getTime();

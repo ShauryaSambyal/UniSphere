@@ -33,7 +33,6 @@ const reviewSchema = new mongoose.Schema({
   }
 });
 
-// A user can review a college only once
 reviewSchema.index({ userId: 1, collegeId: 1 }, { unique: true });
 
 const Review = mongoose.model('Review', reviewSchema);
