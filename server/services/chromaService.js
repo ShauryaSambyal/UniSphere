@@ -123,7 +123,7 @@ Fees:
 Tuition: ${college.fees?.tuition || 'N/A'}, Hostel: ${college.fees?.hostel || 'N/A'}
 
 Placements:
-Average Package ${college.placements?.averagePackage || 'N/A'}, Highest Package ${college.placements?.highestPackage || 'N/A'}
+Average Package ${college.placements?.averagePackage || 'N/A'}, Highest Package ${college.placements?.highestPackage || 'N/A'}${college.placements?.nirf?.medianSalary ? `, Median Salary (NIRF ${college.placements.nirf.year || ''}) ${(college.placements.nirf.medianSalary / 100000).toFixed(1)} LPA` : ''}${college.placements?.nirf?.placementRate != null ? `, Placement rate ${college.placements.nirf.placementRate}%` : ''}
 
 Courses:
 ${(college.courses || []).join('\n')}

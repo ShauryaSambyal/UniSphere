@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../services/api';
-import { locationLabel, nirfLabel } from '../lib/format';
+import { locationLabel, nirfLabel, formatRupees } from '../lib/format';
 import { Check, X, Search, Plus, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { fadeUp } from '../lib/motion';
@@ -71,6 +71,9 @@ export default function Compare() {
   const chartData = selectedColleges.map(c => ({
     name: c.shortName || c.name.split(' ')[0],
     'Avg Package (LPA)': parseFloat(c.placements?.averagePackage) || 0,
+    'Median (NIRF, LPA)': c.placements?.nirf?.medianSalary
+      ? Math.round((c.placements.nirf.medianSalary / 100000) * 10) / 10
+      : 0,
     'Highest Package (LPA)': parseFloat(c.placements?.highestPackage) || 0,
   }));
 
@@ -190,6 +193,24 @@ export default function Compare() {
                     {selectedColleges.map(c => <td key={c._id} className="p-4 font-medium text-foreground">{c.placements?.averagePackage || 'N/A'}</td>)}
                   </tr>
                   <tr>
+                    <td className="p-4 font-normal text-muted">
+                      Median package (NIRF {selectedColleges.find(c => c.placements?.nirf)?.placements.nirf.year || ''})
+                    </td>
+                    {selectedColleges.map(c => (
+                      <td key={c._id} className="p-4 font-medium text-foreground">
+                        {formatRupees(c.placements?.nirf?.medianSalary) || 'N/A'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="p-4 font-normal text-muted">Placement rate (NIRF)</td>
+                    {selectedColleges.map(c => (
+                      <td key={c._id} className="p-4 font-medium text-foreground">
+                        {c.placements?.nirf?.placementRate != null ? `${c.placements.nirf.placementRate}%` : 'N/A'}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
                     <td className="p-4 font-normal text-muted">Hostel available</td>
                     {selectedColleges.map(c => (
                       <td key={c._id} className="p-4">
@@ -235,6 +256,7 @@ export default function Compare() {
                   />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px', color: 'var(--color-muted)' }} />
                   <Bar dataKey="Avg Package (LPA)" fill="var(--color-foreground)" radius={[6, 6, 0, 0]} maxBarSize={56} />
+                  <Bar dataKey="Median (NIRF, LPA)" fill="var(--color-accent, #6366f1)" radius={[6, 6, 0, 0]} maxBarSize={56} />
                   <Bar dataKey="Highest Package (LPA)" fill="var(--color-faint)" radius={[6, 6, 0, 0]} maxBarSize={56} />
                 </BarChart>
               </ResponsiveContainer>

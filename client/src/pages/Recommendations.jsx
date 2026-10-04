@@ -5,7 +5,7 @@ import { Sparkles, MapPin, Award, IndianRupee, ChevronRight, SearchX, Loader2 } 
 import api from '../services/api';
 import Dropdown from '../components/Dropdown';
 import useCollegeFilters from '../lib/useCollegeFilters';
-import { locationLabel, prettyLabel, nirfLabel } from '../lib/format';
+import { locationLabel, prettyLabel, nirfLabel, formatRupees } from '../lib/format';
 import { EASE, fadeUp } from '../lib/motion';
 
 export default function Recommendations() {
@@ -201,8 +201,14 @@ export default function Recommendations() {
 
                     <div className="flex flex-wrap items-center gap-4">
                       <div className="min-w-[110px] rounded-xl border border-line bg-subtle p-3">
-                        <div className="text-[10px] font-medium uppercase tracking-wider text-faint">Avg pkg</div>
-                        <div className="mt-0.5 font-mono text-xs font-medium text-foreground">{item.placements?.averagePackage || 'N/A'}</div>
+                        <div className="text-[10px] font-medium uppercase tracking-wider text-faint">
+                          {item.placements?.averagePackage
+                            ? 'Avg pkg'
+                            : item.placements?.nirf?.medianSalary ? 'Median (NIRF)' : 'Avg pkg'}
+                        </div>
+                        <div className="mt-0.5 font-mono text-xs font-medium text-foreground">
+                          {item.placements?.averagePackage || formatRupees(item.placements?.nirf?.medianSalary) || 'N/A'}
+                        </div>
                       </div>
 
                       <div className="min-w-[110px] rounded-xl border border-line bg-subtle p-3">

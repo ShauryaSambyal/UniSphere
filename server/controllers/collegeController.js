@@ -350,6 +350,15 @@ const scoreCollege = (college, { budget, preferredCity, wantedTokens }) => {
     else if (pkgVal > 10) score += 40;
     else if (pkgVal > 6) score += 25;
     else score += 10;
+  } else {
+    const nirfMedian = Number(college.placements?.nirf?.medianSalary);
+    if (Number.isFinite(nirfMedian) && nirfMedian > 0) {
+      const pkgVal = nirfMedian / 100000;
+      if (pkgVal > 15) score += 50;
+      else if (pkgVal > 10) score += 40;
+      else if (pkgVal > 6) score += 25;
+      else score += 10;
+    }
   }
 
   if (budget) {

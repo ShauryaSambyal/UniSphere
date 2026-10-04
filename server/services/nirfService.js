@@ -256,6 +256,7 @@ export async function fetchNirfRankings({ year, log = console.log, categories } 
   });
 
   const institutes = perCategory.flat();
+  institutes.forEach((record) => { record.edition = edition; });
 
   const priority = (category) => {
     const index = CATEGORY_PRIORITY.findIndex((prefix) =>
@@ -482,17 +483,33 @@ export async function parseDcsPdf(buffer) {
   return { placements, strength, facultyCount };
 }
 
-const dcsCachePath = (nirfId, cacheDir) => path.join(cacheDir, 'dcs', `${nirfId}.json`);
+const editionFromPdfUrl = (value) => {
+  const match = String(value || '').match(/\/(\d{4})\/pdf\//);
+  return match ? Number(match[1]) : null;
+};
+
+export const recordEdition = (record) =>
+  Number(record?.edition) || editionFromPdfUrl(record?.pdfUrl) || null;
+
+const dcsCachePath = (nirfId, cacheDir, year) =>
+  year
+    ? path.join(cacheDir, 'dcs', String(year), `${nirfId}.json`)
+    : path.join(cacheDir, 'dcs', `${nirfId}.json`);
 
 export async function fetchDcsData(record, { cacheDir = NIRF_CACHE_DIR, log = () => {} } = {}) {
   if (!record?.nirfId || !record?.pdfUrl) return null;
-  const cachePath = dcsCachePath(record.nirfId, cacheDir);
+  const year = recordEdition(record);
+  const cachePath = dcsCachePath(record.nirfId, cacheDir, year);
+  const legacyPath = dcsCachePath(record.nirfId, cacheDir, null);
 
-  try {
-    const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
-    if (cached?.parsed) return cached.parsed;
-  } catch {
+  for (const candidate of [cachePath, legacyPath]) {
+    try {
+      const cached = JSON.parse(await fs.readFile(candidate, 'utf8'));
+      const cachedYear = Number(cached?.year) || editionFromPdfUrl(cached?.pdfUrl);
+      if (cached?.parsed && (!year || !cachedYear || cachedYear === year)) return cached.parsed;
+    } catch {
 
+    }
   }
 
   const buffer = await fetchBinary(record.pdfUrl);
@@ -506,6 +523,7 @@ export async function fetchDcsData(record, { cacheDir = NIRF_CACHE_DIR, log = ()
       name: record.name,
       category: record.category,
       pdfUrl: record.pdfUrl,
+      year,
       fetchedAt: new Date().toISOString(),
       parsed
     }),
@@ -516,20 +534,38 @@ export async function fetchDcsData(record, { cacheDir = NIRF_CACHE_DIR, log = ()
   return parsed;
 }
 
-export async function readDcsCache({ cacheDir = NIRF_CACHE_DIR } = {}) {
+export async function readDcsCache({ cacheDir = NIRF_CACHE_DIR, year = null } = {}) {
   const dir = path.join(cacheDir, 'dcs');
   const byId = new Map();
 
-  try {
-    const files = await fs.readdir(dir);
+  const readDir = async (target) => {
+    let files;
+    try {
+      files = await fs.readdir(target);
+    } catch {
+      return;
+    }
+
     for (const file of files) {
       if (!file.endsWith('.json')) continue;
       try {
-        const cached = JSON.parse(await fs.readFile(path.join(dir, file), 'utf8'));
-        if (cached?.parsed) byId.set(cached.nirfId, cached);
+        const cached = JSON.parse(await fs.readFile(path.join(target, file), 'utf8'));
+        if (!cached?.parsed) continue;
+        const cachedYear = Number(cached?.year) || editionFromPdfUrl(cached?.pdfUrl);
+        if (year && cachedYear && cachedYear !== year) continue;
+        const existing = byId.get(cached.nirfId);
+        if (existing && (Number(existing.year) || 0) > (cachedYear || 0)) continue;
+        byId.set(cached.nirfId, { ...cached, year: cachedYear });
       } catch {
 
       }
+    }
+  };
+
+  await readDir(dir);
+  try {
+    for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) await readDir(path.join(dir, entry.name));
     }
   } catch {
 
@@ -614,6 +650,7 @@ export function buildNirfSnapshot({ year, institutes, dcsById, log = console.log
       nirfId: record.nirfId,
       category: record.category,
       pdfUrl: record.pdfUrl,
+      year: Number(cached?.year) || recordEdition(record) || year,
       fetchedAt: cached.fetchedAt,
       placements: cached.parsed.placements,
       strength: cached.parsed.strength,
@@ -682,7 +719,11 @@ const CITY_ALIASES = new Map([
   ['trichy', 'tiruchirappalli'],
   ['simla', 'shimla'],
   ['cawnpore', 'kanpur'],
-  ['jullundur', 'jalandhar']
+  ['jullundur', 'jalandhar'],
+  ['bangaloreurban', 'bengaluru'],
+  ['sonepat', 'sonipat'],
+  ['kanchipuram', 'kancheepuram'],
+  ['calicut', 'kozhikode']
 ]);
 
 export const foldName = (value) => {
@@ -711,7 +752,12 @@ const ACRONYM_EXPANSIONS = new Map([
   ['iitm', 'indian institute of technology madras'],
   ['iitd', 'indian institute of technology delhi'],
   ['iitk', 'indian institute of technology kanpur'],
-  ['iitkgp', 'indian institute of technology kharagpur']
+  ['iitkgp', 'indian institute of technology kharagpur'],
+  ['bhu', 'banaras hindu university'],
+  ['ism', 'indian school of mines'],
+  ['bits', 'birla institute of technology and science'],
+  ['nsut', 'netaji subhas university of technology'],
+  ['iiith', 'international institute of information technology hyderabad']
 ]);
 
 export const expandAcronyms = (foldedName) => {
@@ -726,21 +772,35 @@ const cityKey = (value) => {
   return CITY_ALIASES.get(clean) || clean;
 };
 
-const cityAgrees = (a, b) => {
+const nameTokens = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(Boolean);
+
+const tokensOverlap = (a, b) => {
+  const left = nameTokens(a);
+  const right = nameTokens(b);
+  if (!left.length || !right.length) return false;
+  const [short, long] = left.length <= right.length ? [left, right] : [right, left];
+  if (short.join('').length < 3) return false;
+  for (let index = 0; index + short.length <= long.length; index += 1) {
+    if (short.every((token, offset) => token === long[index + offset])) return true;
+  }
+  return false;
+};
+
+export const cityAgrees = (a, b) => {
   const left = cityKey(a);
   const right = cityKey(b);
   if (!left || !right) return false;
   if (left === right) return true;
-
-  const [short, long] = [left, right].sort((x, y) => x.length - y.length);
-  return short.length >= 5 && long.includes(short);
+  if (nameSimilarity(left, right) >= 0.85) return true;
+  return tokensOverlap(String(a || '').split(',')[0], String(b || '').split(',')[0]);
 };
 
-const stateAgrees = (a, b) => {
+export const stateAgrees = (a, b) => {
   const left = normalizeName(a);
   const right = normalizeName(b);
   if (!left || !right) return false;
-  return left === right || left.includes(right) || right.includes(left);
+  if (left === right) return true;
+  return tokensOverlap(a, b);
 };
 
 const bandFloor = (band) => {
@@ -748,43 +808,250 @@ const bandFloor = (band) => {
   return Number.isFinite(value) ? value : null;
 };
 
+const STOP_TOKENS = new Set([
+  'institute', 'college', 'university', 'of', 'and', 'the', 'for', 'at', 'deemed', 'autonomous',
+  'affiliated', 'national', 'india', 'indian', 'government', 'govt', 'polytechnic', 'school',
+  'department', 'faculty', 'campus', 'centre', 'center', 'society', 'trust', 'education',
+  'higher', 'science', 'sciences', 'arts', 'art'
+]);
+
+const TOKEN_SIMILARITY_FLOOR = 0.7;
+const A_SIDE_SKIP_SIMILARITY = 0.91;
+const B_SIDE_SKIP_SIMILARITY = 0.85;
+const HIGH_CONFIDENCE_SIMILARITY = 0.95;
+
+const editDistanceWithin = (left, right, maxDistance) => {
+  if (left === right) return true;
+  if (Math.abs(left.length - right.length) > maxDistance) return false;
+  const previous = new Array(right.length + 1);
+  const current = new Array(right.length + 1);
+  for (let index = 0; index <= right.length; index += 1) previous[index] = index;
+  for (let i = 1; i <= left.length; i += 1) {
+    current[0] = i;
+    let rowMin = current[0];
+    for (let j = 1; j <= right.length; j += 1) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+      if (current[j] < rowMin) rowMin = current[j];
+    }
+    if (rowMin > maxDistance) return false;
+    for (let j = 0; j <= right.length; j += 1) previous[j] = current[j];
+  }
+  return previous[right.length] <= maxDistance;
+};
+
+const tokenMatches = (left, right) => {
+  if (left === right) return true;
+  const minLen = Math.min(left.length, right.length);
+  const maxLen = Math.max(left.length, right.length);
+  if (minLen <= 3 && (left.startsWith(right) || right.startsWith(left))) return true;
+  if (minLen >= 4 && (left.includes(right) || right.includes(left))) return true;
+  if (editDistanceWithin(left, right, maxLen >= 8 ? 2 : 1)) return true;
+  return nameSimilarity(left, right) >= TOKEN_SIMILARITY_FLOOR;
+};
+
+const isSubsequence = (pattern, value) => {
+  let index = 0;
+  for (const char of value) {
+    if (char === pattern[index]) index += 1;
+    if (index === pattern.length) return true;
+  }
+  return false;
+};
+
+const INITIALISM_MAX = 8;
+
+const markInitialisms = (sideTokens, otherTokens, covered) => {
+  const targets = new Set([...sideTokens, ...otherTokens]);
+  const maxWindow = Math.min(INITIALISM_MAX, sideTokens.length);
+  for (let size = 2; size <= maxWindow; size += 1) {
+    for (let start = 0; start + size <= sideTokens.length; start += 1) {
+      let initials = '';
+      for (let index = start; index < start + size; index += 1) initials += sideTokens[index][0];
+      if (initials.length < 2 || !targets.has(initials)) continue;
+      for (let index = start; index < start + size; index += 1) covered[index] = true;
+      let targetIndex = sideTokens.indexOf(initials);
+      while (targetIndex >= start && targetIndex < start + size && targetIndex >= 0) {
+        targetIndex = sideTokens.indexOf(initials, targetIndex + 1);
+      }
+      if (targetIndex >= 0) covered[targetIndex] = true;
+    }
+  }
+};
+
+const requiredToken = (token, locSet) =>
+  !STOP_TOKENS.has(token) && token.length > 3 && !locSet.has(token);
+
+const sideCovered = (sideTokens, otherTokens, locSet) => {
+  const covered = sideTokens.map(() => false);
+  let pending = false;
+  for (let index = 0; index < sideTokens.length; index += 1) {
+    const token = sideTokens[index];
+    if (!requiredToken(token, locSet)) {
+      covered[index] = true;
+      continue;
+    }
+    if (otherTokens.some((other) => tokenMatches(token, other))) {
+      covered[index] = true;
+      continue;
+    }
+    pending = true;
+  }
+  if (!pending) return true;
+
+  const shortOther = otherTokens.filter((token) => token.length >= 2 && token.length <= 3);
+  if (shortOther.length) {
+    for (let index = 0; index < sideTokens.length; index += 1) {
+      if (covered[index]) continue;
+      if (shortOther.some((short) => isSubsequence(short, sideTokens[index]))) covered[index] = true;
+    }
+  }
+
+  if (!covered.every(Boolean)) markInitialisms(sideTokens, otherTokens, covered);
+
+  return covered.every(Boolean);
+};
+
+const bigramCache = new Map();
+
+const bigramsOf = (value) => {
+  let cached = bigramCache.get(value);
+  if (!cached) {
+    const set = new Set();
+    for (let index = 0; index < value.length - 1; index += 1) set.add(value.slice(index, index + 2));
+    cached = set;
+    if (bigramCache.size < 20000) bigramCache.set(value, cached);
+  }
+  return cached;
+};
+
+export const nameSimilarity = (left, right) => {
+  if (!left || !right) return 0;
+  const shorter = Math.min(left.length, right.length);
+  const longer = Math.max(left.length, right.length);
+  if (shorter === 0) return 0;
+  if (shorter / longer < 0.6) return 0;
+
+  const leftGrams = bigramsOf(left);
+  const rightGrams = bigramsOf(right);
+  let shared = 0;
+  for (const gram of leftGrams) if (rightGrams.has(gram)) shared += 1;
+  return (2 * shared) / (leftGrams.size + rightGrams.size);
+};
+
+const foldedNames = new WeakMap();
+
+const foldedRecordName = (record) => {
+  let value = foldedNames.get(record);
+  if (value === undefined) {
+    value = foldName(record.name);
+    foldedNames.set(record, value);
+  }
+  return value;
+};
+
 export function buildNirfIndex(snapshot) {
   const byName = new Map();
+  const byFirstToken = new Map();
+  const dcsById = new Map();
 
   for (const record of snapshot?.institutes || []) {
-    const name = foldName(record.name);
+    const name = foldedRecordName(record);
     if (!name) continue;
     if (!byName.has(name)) byName.set(name, []);
     byName.get(name).push(record);
+
+    const firstToken = name.split(' ')[0];
+    if (firstToken) {
+      if (!byFirstToken.has(firstToken)) byFirstToken.set(firstToken, []);
+      byFirstToken.get(firstToken).push(record);
+    }
   }
 
-  return { byName, snapshot };
+  const bestEdition = (dossier) => Number(dossier?.year) || 0;
+  for (const dossier of Object.values(snapshot?.dcs || {})) {
+    if (!dossier?.nirfId) continue;
+    const current = dcsById.get(dossier.nirfId);
+    if (!current || bestEdition(dossier) > bestEdition(current)) {
+      dcsById.set(dossier.nirfId, dossier);
+    }
+  }
+
+  return { byName, byFirstToken, dcsById, snapshot };
 }
 
-const candidateMatchesCollege = (college, record, nameVariants) => {
-  const recordName = foldName(record.name);
+export const candidateMatchesCollege = (college, record, nameVariants) => {
+  const recordName = foldedRecordName(record);
   if (!recordName) return 0;
 
+  const city = cityAgrees(college.location?.city, record.city);
+  const state = stateAgrees(college.location?.state, record.state);
+  const hasLocation = Boolean(cityKey(college.location?.city) || normalizeName(college.location?.state));
+
+  const collegeCity = nameTokens(college.location?.city);
+  const recordCity = nameTokens(record.city);
+  const collegeState = nameTokens(college.location?.state);
+  const recordState = nameTokens(record.state);
+  const collegeNameTokens = nameTokens(college.name);
+  const recordNameTokens = nameTokens(recordName);
+  const locationTokens = new Set([
+    ...collegeCity,
+    ...collegeState,
+    ...recordCity,
+    ...recordState
+  ]);
+  const conflictingCityMention = Boolean(
+    !city &&
+      collegeCity.length &&
+      recordCity.length &&
+      collegeCity.every((token) => collegeNameTokens.includes(token)) &&
+      !recordCity.every((token) => collegeNameTokens.includes(token))
+  );
+  const bothCities = collegeCity.length > 0 && recordCity.length > 0;
+  const nameCityLink = Boolean(
+    (recordCity.length && recordCity.every((token) => collegeNameTokens.includes(token))) ||
+      (collegeCity.length && collegeCity.every((token) => recordNameTokens.includes(token)))
+  );
+
   let nameScore = 0;
+  let exact = false;
   for (const variant of nameVariants) {
     if (!variant) continue;
     if (variant === recordName) {
       nameScore = Math.max(nameScore, 4);
-    } else if (
-      (variant.startsWith(recordName) || recordName.startsWith(variant)) &&
-      Math.abs(variant.length - recordName.length) <= 20 &&
-      cityAgrees(college.location?.city, record.city)
-    ) {
+      exact = true;
+      continue;
+    }
 
+    if (conflictingCityMention) continue;
+
+    const prefix =
+      (variant.startsWith(recordName) || recordName.startsWith(variant)) &&
+      Math.abs(variant.length - recordName.length) <= 20;
+    if (prefix && (city || state)) {
+      nameScore = Math.max(nameScore, 2);
+      continue;
+    }
+
+    if (hasLocation) {
+      const similarity = nameSimilarity(variant, recordName);
+      const bandOk = similarity >= 0.85 || (similarity >= 0.75 && city);
+      if (!bandOk) continue;
+      if (bothCities && !city && !nameCityLink && similarity < HIGH_CONFIDENCE_SIMILARITY) continue;
+      const collegeTokens = nameTokens(variant);
+      if (similarity < A_SIDE_SKIP_SIMILARITY && !sideCovered(collegeTokens, recordNameTokens, locationTokens)) {
+        continue;
+      }
+      if (similarity < B_SIDE_SKIP_SIMILARITY && !sideCovered(recordNameTokens, collegeTokens, locationTokens)) {
+        continue;
+      }
       nameScore = Math.max(nameScore, 2);
     }
   }
 
   if (nameScore === 0) return 0;
-
-  const city = cityAgrees(college.location?.city, record.city);
-  const state = stateAgrees(college.location?.state, record.state);
-  if (!city && !state) return 0;
+  if (hasLocation && !city && !state) return 0;
+  if (!hasLocation && !exact) return 0;
 
   return nameScore + (city ? 4 : 0) + (state ? 2 : 0);
 };
@@ -794,19 +1061,20 @@ export function matchCollegeToNirf(college, index) {
   if (!folded) return null;
 
   const nameVariants = [...new Set([folded, expandAcronyms(folded)])];
+  const seen = new Set();
   const extended = [];
-
-  for (const name of nameVariants) {
-    extended.push(...(index.byName.get(name) || []));
-  }
-
-  for (const name of nameVariants) {
-    if (name.length < 12) continue;
-    for (const [candidateName, records] of index.byName) {
-      if (candidateName.startsWith(name) && Math.abs(candidateName.length - name.length) <= 20) {
-        extended.push(...records);
-      }
+  const collect = (records) => {
+    for (const record of records || []) {
+      if (seen.has(record)) continue;
+      seen.add(record);
+      extended.push(record);
     }
+  };
+
+  for (const name of nameVariants) {
+    collect(index.byName.get(name));
+    const firstToken = name.split(' ')[0];
+    collect(index.byFirstToken?.get(firstToken));
   }
 
   const scored = extended
@@ -817,7 +1085,7 @@ export function matchCollegeToNirf(college, index) {
 
   const byCampus = new Map();
   for (const entry of scored) {
-    const key = `${foldName(entry.record.name)}|${foldName(entry.record.state)}`;
+    const key = `${foldedRecordName(entry.record)}|${foldName(entry.record.state)}`;
     const current = byCampus.get(key);
     if (!current || entry.score > current.score) {
       byCampus.set(key, { score: entry.score, records: [entry.record] });
@@ -830,26 +1098,50 @@ export function matchCollegeToNirf(college, index) {
     .map(([key, value]) => ({ key, ...value }))
     .sort((a, b) => b.score - a.score);
 
-  if (ranked.length > 1 && ranked[0].score === ranked[1].score) return null;
+  while (ranked.length > 1 && ranked[0].score === ranked[1].score) {
+    const [leftName, leftState] = ranked[0].key.split('|');
+    const [rightName, rightState] = ranked[1].key.split('|');
+    const sameState = leftState === rightState;
+    const sharedId = ranked[0].records.some(
+      (record) =>
+        record.nirfId && ranked[1].records.some((other) => other.nirfId === record.nirfId)
+    );
+    const sameCampus = sameState && (sharedId || nameSimilarity(leftName, rightName) >= 0.8);
+    if (!sameCampus) return null;
+
+    ranked[0].records.push(...ranked[1].records);
+    ranked.splice(1, 1);
+  }
 
   const winner = ranked[0];
-  const nameKey = foldName(winner.records[0].name);
-  const stateKey = foldName(winner.records[0].state);
 
-  return {
-    records: winner.records,
-    dcs: index.snapshot.dcs?.[`${nameKey}|${stateKey}`] || null
-  };
+  let dcs = null;
+  for (const record of winner.records) {
+    const key = `${foldedRecordName(record)}|${foldName(record.state)}`;
+    const byKey = index.snapshot.dcs?.[key];
+    if (byKey) { dcs = byKey; break; }
+  }
+  if (!dcs) {
+    for (const record of winner.records) {
+      const byId = record.nirfId ? index.dcsById?.get(record.nirfId) : null;
+      if (byId) { dcs = byId; break; }
+    }
+  }
+
+  return { records: winner.records, dcs };
 }
 
 export function computeNirfFields(college, campus, snapshot) {
-  const year = snapshot?.meta?.year || null;
+  const recordYear = (record) => Number(record.edition) || Number(snapshot?.meta?.year) || 0;
+  const years = campus.records.map(recordYear).filter((value) => value > 0);
+  const year = (years.length ? Math.max(...years) : null) || snapshot?.meta?.year || null;
+  const latestRecords = year ? campus.records.filter((record) => recordYear(record) === year) : campus.records;
   const sourceUrl = snapshot?.meta?.sourceUrl || NIRF_SITE;
 
   const ranksByCategory = new Map();
   const bandsByCategory = new Map();
 
-  for (const record of campus.records) {
+  for (const record of latestRecords) {
     if (record.rank) {
       const current = ranksByCategory.get(record.category);
       if (!current || record.rank < current.rank) {
@@ -890,7 +1182,8 @@ export function computeNirfFields(college, campus, snapshot) {
   }
 
   if (campus.dcs) {
-    const aggregated = aggregatePlacements(campus.dcs, { year, pdfUrl: campus.dcs.pdfUrl });
+    const dossierYear = Number(campus.dcs.year) || year;
+    const aggregated = aggregatePlacements(campus.dcs, { year: dossierYear, pdfUrl: campus.dcs.pdfUrl });
     if (aggregated) fields.placementsNirf = aggregated;
     if (campus.dcs.strength) {
       fields.studentStrength = campus.dcs.strength;
